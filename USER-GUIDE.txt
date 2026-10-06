@@ -1,0 +1,361 @@
+===============================================================
+ CBM ARTICLE CONVERTER - USER GUIDE
+ Version 1.2.0
+===============================================================
+
+This turns a finished article into HTML that can be pasted
+into a Squarespace Code Block, with working footnotes, pull
+quotes and Scripture formatting.
+
+It takes articles from two places:
+
+  a Word document   (.docx)
+  an InDesign export (.html)
+
+There are two audiences for this guide. Editors who run the
+app want the first half. The person building the web page
+wants the section headed FOR WHOEVER BUILDS THE PAGE.
+
+
+---------------------------------------------------------------
+ GETTING STARTED
+---------------------------------------------------------------
+
+The app is a single file. Nothing needs installing. Copy it
+where you like and double-click it.
+
+The first time it runs on a machine, the system will object,
+because the app is not signed:
+
+  Windows   "Windows protected your PC". Click More info,
+            then Run anyway.
+
+  macOS     It simply refuses. Right-click (or Control-click)
+            the app, choose Open, then confirm. After that it
+            opens normally.
+
+This happens once per machine, not once per article.
+
+
+---------------------------------------------------------------
+ THE WINDOW
+---------------------------------------------------------------
+
+Three buttons:
+
+  Choose article...     pick one or more files to convert
+  Convert               convert them
+  Add house styles...   put the house styles into an author's
+                        Word file, see further down
+
+Below those, a line shows which house template the app is
+using, with a Change button beside it. The template is
+remembered between sessions.
+
+The large panel reports what happened: how many footnotes were
+linked, where pull quotes went, the word count, and any
+warnings. Read it. Nearly every problem announces itself there
+before it reaches the website.
+
+
+---------------------------------------------------------------
+ BEFORE YOU CONVERT: WORD ARTICLES
+---------------------------------------------------------------
+
+The converter reads Word styles. It cannot read formatting
+applied by hand: a paragraph indented with the ruler is not a
+block quotation as far as any software is concerned, it is
+just an indented paragraph.
+
+Use these styles:
+
+  Heading 2       top-level sections
+  Heading 3       subsections
+  Heading 4       third level
+  Block Text      block quotations
+  Blurb           the summary that opens the article
+  Author Bio      the contributor's biography
+  Article Note    "second in a series", and the like
+  Side Bar        a pull quote
+  Verse Block     poetry or Scripture set as lines
+  Body Text       ordinary paragraphs
+
+Italics typed directly are kept. So are Word's own footnotes.
+Footnotes typed by hand as plain numbers are not footnotes and
+cannot be made into them afterwards.
+
+Title and Author are found by their labels in the text:
+
+  Title: The Faulty Hermeneutics of the Assumption
+  Author: Joshua Daugereau
+
+Leave those labels in. They are stripped during conversion.
+
+For Verse Block, use ONE paragraph per stanza and press
+Shift+Enter between the lines inside it. Do not make each line
+its own paragraph.
+
+For Side Bar, copy the sentence you want to feature, paste it
+as its own paragraph, and apply the style. Edit the copy so it
+reads on its own: trim the middle with an ellipsis, put any
+added word in square brackets. Both survive the matching.
+
+
+---------------------------------------------------------------
+ BEFORE YOU CONVERT: INDESIGN ARTICLES
+---------------------------------------------------------------
+
+Export with File > Export and choose HTML, listed as
+"HTML (Classic)" in recent versions. Do NOT use "HTML5
+Publication" or "Publish Online": those make a page-flipping
+viewer, not an article.
+
+Leave "Generate CSS" switched on, and KEEP THE
+"-web-resources" FOLDER BESIDE THE .html FILE. The converter
+reads InDesign's stylesheet to work out which of its styles
+mean italic, bold and superscript, because InDesign names them
+things like "CharOverride-1". Without that folder the italics
+are lost, and the app will warn you.
+
+Pull quotes need no special placement. Put them in a text
+frame, apply the Side Bar paragraph style, and let the frame
+sit wherever suits the layout. InDesign pushes unanchored
+frames out of the article on export, and the converter puts
+each quote back beside the paragraph it quotes.
+
+
+---------------------------------------------------------------
+ CONVERTING
+---------------------------------------------------------------
+
+Choose one or more articles, then press Convert.
+
+Two files appear beside the original, named with the date and
+time of the run:
+
+  20261004_1032_Gurtaev Water Baptism.html
+  20261004_1032_Gurtaev Water Baptism.txt
+
+They hold exactly the same thing.
+
+  Open the .html in a browser to CHECK the article.
+  Open the .txt in Notepad to COPY the code.
+
+Check the .html first. Click a raised footnote number: it
+should jump to the note. Click the note's number: it should
+jump back. On a long article try the first note, a two-digit
+one, and the last.
+
+The .html will look plain, with no fonts or colours. That is
+correct. Squarespace supplies all of that.
+
+
+---------------------------------------------------------------
+ WHAT THE CONVERTER DOES
+---------------------------------------------------------------
+
+At the top of the finished file, above the code, in plain text:
+
+  TITLE
+  The Faulty Hermeneutics of the Assumption
+
+  AUTHOR
+  Joshua Daugereau
+
+  ----- paste everything below this line into the Code Block -----
+
+Those two are cut out and pasted into Squarespace's own boxes.
+Being above that line, they cannot be pasted in by accident.
+
+Then the article itself:
+
+  the blurb, set larger than the body as an opening
+  any note about the article, in italic beneath it
+  the reading time, as "27 MIN READ" with a clock
+  a hairline rule closing the front matter
+
+  the body, with headings 2 and 3 centred and heading 4
+  left-aligned and italic
+
+  pull quotes, alternating left and right down the article,
+  each carrying links to share that sentence
+
+  a hairline rule
+  the author bio, centred and italic
+  the footnotes
+
+Footnote numbers at the bottom link back up to the callout.
+Links to other websites open in a new tab. Footnote links do
+not: they jump within the same page.
+
+A paragraph that is mostly Hebrew is set right to left and
+right-aligned. Greek is tagged as Greek. A Hebrew word inside
+an English sentence is left alone; browsers handle that.
+
+The reading time counts the article body at 200 words a
+minute. Footnotes, pull quotes and front matter are left out.
+
+
+---------------------------------------------------------------
+ IF A PULL QUOTE DOES NOT MATCH
+---------------------------------------------------------------
+
+A pull quote has to repeat a sentence from the article so it
+can be matched to its paragraph. If one has been reworded, the
+app shows you the text and asks:
+
+  Yes   leave that quote out and carry on
+  No    abandon this file and write nothing
+
+Choosing No lets you correct the wording and convert again.
+
+The usual cause is someone tidying the sentence while copying
+it. Mark additions with [square brackets] and cuts with an
+ellipsis and it will still match.
+
+
+---------------------------------------------------------------
+ ADDING HOUSE STYLES TO AN AUTHOR'S FILE
+---------------------------------------------------------------
+
+Authors send documents with no styles, or with styles they
+invented. Rather than rebuild the file and risk losing things,
+this copies the house styles INTO it.
+
+Press "Add house styles...", choose the author's .docx, and
+confirm which template to use. A new file appears beside the
+original:
+
+  <original name> (house styles).docx
+
+Open that and the house styles are in the Styles pane, ready
+to apply. Nothing else changed: the text, comments, tables and
+tracked changes are exactly as the author sent them. Styles
+the document already has are left alone.
+
+
+===============================================================
+ FOR WHOEVER BUILDS THE PAGE
+===============================================================
+
+You will be given two files per article. Use the .txt.
+
+1. Open the .txt. It opens in Notepad.
+
+2. At the top, above the marked line, are the TITLE and the
+   AUTHOR as plain text. Cut those and paste them into
+   Squarespace's own title and author boxes.
+
+3. Select everything BELOW the marked line and copy it.
+
+4. In Squarespace, add a CODE BLOCK. Not a Text Block: a Text
+   Block strips out the markers the footnotes rely on, and
+   every footnote stops working.
+
+5. Delete the placeholder content, paste, and make sure the
+   block type is HTML with "Display Source" unticked.
+
+6. Save and look at the PUBLISHED page. Code Blocks often do
+   not render inside the editor, so the editor preview proves
+   nothing.
+
+7. Click a few footnotes on the live page.
+
+Images are not carried across. If the article has photographs,
+place them as ordinary Image Blocks and split the text into
+two Code Blocks around each one. Footnote links still work
+across blocks, because it is all one page.
+
+ONE THING TO SET UP ONCE, SITE-WIDE
+-----------------------------------
+
+Pull quotes need nothing. The article carries its own styling,
+including the floating into the margins on wide screens, so
+there is nothing to add for those.
+
+What does need setting up once is Hebrew. The site font does
+not position Hebrew vowel points correctly. Upload a Hebrew
+font through Manage Custom Files in Design > Custom CSS, then
+add a second face under the SAME family name as the site font,
+scoped to the Hebrew range:
+
+  @font-face {
+    font-family: 'Tinos';
+    src: url();
+    unicode-range: U+0590-05FF, U+FB1D-FB4F, U+200F;
+  }
+
+Place the cursor between the brackets of url() and click the
+uploaded font in Manage Custom Files to insert its address.
+This block must come after whatever declares the site font.
+Latin text is unaffected, and the Hebrew font is downloaded
+only on pages that actually contain Hebrew.
+
+---------------------------------------------------------------
+ WHEN SOMETHING LOOKS WRONG
+---------------------------------------------------------------
+
+Read the report panel first. It says what it did.
+
+"no stylesheet found; italics may be lost"
+  An InDesign export without its "-web-resources" folder
+  beside it. Put them back together and convert again.
+
+Block quotations came out as ordinary paragraphs
+  They were indented by hand rather than given the Block Text
+  style. Apply the style and convert again.
+
+A heading is not a heading
+  It used a style that only looks like a heading. Use Word's
+  own Heading 2, 3 and 4.
+
+Footnotes do nothing on the published page
+  A Text Block was used instead of a Code Block.
+
+Share links on pull quotes do nothing
+  The small script at the end of the file was not pasted in.
+  Copy the whole thing, including everything after the last
+  paragraph.
+
+
+---------------------------------------------------------------
+ WHICH BUILD MADE A FILE
+---------------------------------------------------------------
+
+Every finished file begins with a hidden line:
+
+  <!-- CBM Article Tools, Version 1.2.0 - converted 2026-10-04
+       10:32 - from: Gurtaev_Water_Baptism.html -->
+
+It never shows on the page. It survives into the Code Block,
+so a published article can always be traced to the build that
+made it. The build number is also in the app's title bar.
+
+===============================================================
+
+
+---------------------------------------------------------------
+ CHECKING FOR A NEWER VERSION
+---------------------------------------------------------------
+
+The app checks by itself a moment after it opens, so nobody
+has to remember. If something newer exists it says so; if not,
+it notes that quietly in the report and carries on.
+
+There is a tick-box beside the template line to turn that off,
+and a "Check for updates" button to ask at any time.
+
+If there is, it shows what changed and offers to download it.
+You choose where it goes. The new version is saved ALONGSIDE
+this one rather than replacing it, so you can go back if the
+new one misbehaves.
+
+Each version is named for itself, as in
+
+    CBM Article Converter 1.0.0.exe
+
+so the two never get confused.
+
+If the check cannot reach GitHub it notes it in the report
+and tells you where to download by hand. Nothing breaks either way; the
+converter does not need the internet to do its work.

@@ -1,0 +1,185 @@
+BUILDING THE APP
+================
+
+The app is two Python files: app.py (the window) and core.py (the
+conversion). It needs Python 3.9 or later and two packages:
+
+    pip install mammoth beautifulsoup4
+
+To run it without building anything:
+
+    python app.py
+
+UNZIP FIRST. Opening app.py from inside a zip file does not work:
+Windows unpacks one file to a temporary place, so core.py is not
+really there and the window closes immediately. Extract the whole
+folder first. The app now notices this and says so.
+
+TO MAKE A STANDALONE APP
+------------------------
+
+Install PyInstaller, then build ON THE MACHINE THE APP IS FOR.
+PyInstaller cannot build a Mac app on Windows or the reverse.
+
+    pip install pyinstaller
+
+Open the folder holding app.py in File Explorer, click into the
+address bar, type cmd and press Enter. You are then standing in the
+right place, and the finished app appears in that same folder.
+
+Windows, produces dist\CBM Article Converter.exe:
+
+    python -m PyInstaller --onefile --windowed --name "CBM Article Converter" app.py
+
+If you run it from somewhere else and give a full path to app.py
+instead, it still works, but the dist and build folders are written
+wherever you were standing rather than beside the app.
+
+PyInstaller also leaves a .spec file and a build folder. The build
+folder is scratch and can be deleted. The .spec records the options,
+so a later rebuild is just:
+
+    python -m PyInstaller "CBM Article Converter.spec"
+
+macOS, produces dist/CBM Article Converter.app:
+
+    python3 -m PyInstaller --onefile --windowed --name "CBM Article Converter" app.py
+
+WHAT TO EXPECT THE FIRST TIME
+-----------------------------
+
+The app is not signed, so each system will object once.
+
+Windows: SmartScreen shows "Windows protected your PC". Click
+"More info", then "Run anyway".
+
+macOS: Gatekeeper refuses to open it. Right-click (or Control-click)
+the app and choose Open, then confirm. After that it opens normally.
+
+Signing removes these warnings. Apple charges 99 US dollars a year;
+Windows signing certificates cost more. For a few colleagues the
+one-time click-through is usually the sensible choice.
+
+
+ADDING HOUSE STYLES TO AN AUTHOR'S DOCUMENT
+===========================================
+
+"Add house styles" copies the style definitions from your template
+into a copy of the author's file. It does not rebuild the document:
+the text, comments, tables and tracked changes are left exactly as
+they arrived. Only the list of available styles changes.
+
+The editor then opens the new copy, which is named
+
+    <original> (house styles).docx
+
+and finds Author Bio, Side Bar, Verse Block and the rest already in
+the Styles pane, ready to apply.
+
+Styles the document already has are left alone, so an author's own
+"Block Text" is never overwritten by yours.
+
+Anything a house style depends on is brought across too. Block Text
+is based on Quote, so Quote comes with it.
+
+THE STYLES IT LOOKS FOR
+-----------------------
+
+Needed:
+
+    Author Bio      the contributor's biography
+    Blurb           the summary that opens the article
+    Side Bar        pull quotes
+    Verse Block     poetry and Scripture set as lines
+    Article Note    "second in a series", and the like
+    Block Text      block quotations
+    Body Text       ordinary paragraphs
+
+Optional, copied across if your template has them:
+
+    Left Side Bar   pins a pull quote to one side
+    Right Side Bar
+
+Pull quotes alternate left and right on their own, worked out in
+reading order, so these two are only for the rare quote that has to
+sit on a particular side.
+
+There is deliberately no First Paragraph style. It existed to satisfy
+Pandoc, which is no longer used, and the articles carry no first-line
+indents on the web.
+
+
+THE HOUSE TEMPLATE IS REMEMBERED
+================================
+
+The template you last used is stored in a small settings file in your
+home folder, named .cbm-article-converter.json. It survives closing
+and reopening the app.
+
+Each time you add house styles, the app shows which template it has
+and offers three choices: use it, choose another, or cancel. Choosing
+another remembers the new one from then on.
+
+The template in use is also shown in the window at all times, with a
+Change button beside it.
+
+If the remembered template is moved or deleted, the app quietly
+forgets it and asks you to choose again.
+
+
+THE EASY WAY TO BUILD
+=====================
+
+Two scripts sit beside app.py and core.py:
+
+    build-windows.bat      double-click on Windows
+    build-mac.command      double-click on a Mac
+
+Either one finds its own folder, so it works from a USB stick or
+wherever the files happen to be. It installs anything missing, reads
+the build number out of core.py, and names the app to match, as in
+
+    CBM Article Converter 45.exe
+
+The finished app appears in a "dist" folder beside the scripts, and
+that folder opens by itself when the build finishes. The working
+files are cleaned up; only the app is left.
+
+On a Mac the first run of build-mac.command may be refused. Right-
+click it, choose Open, and confirm. The same applies to the app it
+builds.
+
+
+IF THE BUILD FAILS
+==================
+
+Both build scripts write everything to build-log.txt beside
+themselves, as it happens. On failure they print the last 25 lines
+to the window and then open the whole log, so there is always
+something to read and copy rather than a console you cannot select
+from.
+
+Send that file on and the cause is usually obvious from it.
+
+
+NOTES FOR THE MAC BUILD
+=======================
+
+Use a Python from python.org rather than whatever Apple ships.
+The system Python's tkinter is often old or missing, and the window
+will not open.
+
+Check before building:
+
+    python3 -c "import tkinter; tkinter.Tk()"
+
+A small empty window should appear. If it errors, install Python
+from python.org and try again.
+
+If your team has both Apple Silicon and Intel Macs, an app built on
+one will not run on the other. Build on the oldest machine, or add:
+
+    --target-arch universal2
+
+The built .app is not signed, so the first run on each machine is
+refused. Right-click the app, choose Open, then confirm.

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Building a CBM article page</title>
+<style>
+:root {
+  --paper:#FDFDFC; --ink:#15161A; --muted:#6B6F76; --rule:#E2E2DE;
+  --accent:#1B3A6B; --code-bg:#F4F5F3; --code-ink:#33383F;
+  --serif:"Charter","Iowan Old Style","Georgia",serif;
+  --mono:"SF Mono","Cascadia Mono","Consolas","DejaVu Sans Mono",monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --paper:#14151A; --ink:#E8E8E4; --muted:#92969D; --rule:#2B2D33;
+           --accent:#8FB3E8; --code-bg:#1B1D23; --code-ink:#C9CEd6; }
+}
+*,*::before,*::after { box-sizing:border-box; }
+body { margin:0; background:var(--paper); color:var(--ink);
+  font-family:var(--serif); line-height:1.65; font-size:17px; }
+.wrap { max-width:68rem; margin:0 auto; padding:0 1.5rem 6rem; }
+
+header.top { border-bottom:1px solid var(--rule); padding:3rem 0 1.5rem; margin-bottom:2.5rem; }
+h1 { font-size:2rem; line-height:1.15; margin:0 0 .4rem; font-weight:600; letter-spacing:-.01em; }
+.standfirst { margin:0 0 1.2rem; color:var(--muted); max-width:34em; }
+.version { display:flex; flex-wrap:wrap; gap:.4rem 1.4rem; font-size:.85rem; color:var(--muted); }
+.version strong { color:var(--ink); font-weight:600; }
+.version a { color:var(--accent); }
+
+h2.section { font-size:1.35rem; margin:3.5rem 0 .6rem; font-weight:600; }
+h2.section + p { margin-top:0; color:var(--muted); max-width:36em; }
+
+/* The hero: the thing that confused him, shown working. */
+.hero { border:1px solid var(--rule); padding:1.6rem 1.8rem; margin:0 0 1rem; }
+.hero p { margin:0 0 1em; }
+.hero p:last-child { margin-bottom:0; }
+.resize-hint { font-size:.85rem; color:var(--muted); margin:0 0 2rem; }
+
+/* Specimen rows: rendered beside its source. */
+.spec { border-top:1px solid var(--rule); padding:1.6rem 0; }
+.spec-head h3 { font-size:1rem; margin:0 0 .2rem; font-weight:600; }
+.spec-head .note { margin:0 0 1rem; font-size:.88rem; color:var(--muted); max-width:40em; }
+.spec-render { padding:1rem 1.1rem; border-left:2px solid var(--accent); }
+.spec-code { margin:.9rem 0 0; padding:.9rem 1.1rem; background:var(--code-bg);
+  color:var(--code-ink); font-family:var(--mono); font-size:.8rem; line-height:1.55;
+  overflow-x:auto; white-space:pre-wrap; word-break:break-word; }
+@media (min-width:60rem) {
+  .spec { display:grid; grid-template-columns:1fr 1fr; gap:0 2rem; align-items:start; }
+  .spec-head { grid-column:1 / -1; }
+  .spec-code { margin-top:0; }
+}
+
+ol.steps { counter-reset:step; list-style:none; padding:0; margin:1.2rem 0 0; }
+ol.steps li { counter-increment:step; position:relative; padding-left:2.4rem; margin:0 0 1.1rem; max-width:44em; }
+ol.steps li::before { content:counter(step); position:absolute; left:0; top:.1em;
+  font-family:var(--mono); font-size:.8rem; color:var(--accent); border:1px solid var(--rule);
+  width:1.6rem; height:1.6rem; display:grid; place-items:center; }
+.warn { border-left:2px solid var(--accent); padding:.2rem 0 .2rem 1rem; margin:1.2rem 0; max-width:44em; }
+pre.block { background:var(--code-bg); color:var(--code-ink); font-family:var(--mono);
+  font-size:.8rem; line-height:1.55; padding:1rem 1.1rem; overflow-x:auto; }
+dl.faults { margin:1.2rem 0 0; }
+dl.faults dt { font-weight:600; margin:1.2rem 0 .2rem; }
+dl.faults dd { margin:0; color:var(--muted); max-width:44em; }
+a { color:var(--accent); }
+:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
+/* ---- the article's own styling, so specimens render as they will ---- */
+.cbm-article .cbm-blurb { font-size:1.15em; line-height:1.5; }
+.cbm-article .cbm-read { text-align:center; font-size:0.78em;
+  letter-spacing:0.09em; text-transform:uppercase; }
+.cbm-article .cbm-clock { width:1em; height:1em; vertical-align:-0.13em; margin-right:0.45em; }
+.cbm-article .cbm-rule { border:none; border-top:1px solid currentColor; opacity:0.25; margin:1.6em 0; }
+.cbm-article h2, .cbm-article h3 { text-align:center; font-size:1.3em; margin:.2em 0; }
+.cbm-article h4 { text-align:left; font-style:italic; }
+.cbm-article .cbm-verse { margin-left:2.5em; text-indent:-1.25em; }
+.cbm-article .cbm-bio { text-align:center; font-style:italic; font-size:0.9em; }
+.cbm-article [lang="he"] { text-align:right; }
+.cbm-article .cbm-pullquote { max-width:32em; margin:2em auto; padding:0.8em 0;
+  border-top:1px solid currentColor; border-bottom:1px solid currentColor; text-align:center; }
+.cbm-article .cbm-pullquote-text { margin:0 0 0.5em; font-style:italic; font-size:1.25em; line-height:1.4; }
+.cbm-article .cbm-share { margin:0; line-height:1; }
+.cbm-article .cbm-share a { display:inline-block; margin:0 .45em; color:currentColor; opacity:.75; }
+.cbm-article .cbm-share svg { width:1.15em; height:1.15em; vertical-align:middle; }
+.cbm-article .cbm-footnotes { list-style:none; padding-left:0; }
+.cbm-article .footnote-back { text-decoration:none; font-weight:600; }
+@media (min-width:900px) {
+  .cbm-article .cbm-pullquote { width:38%; max-width:none; margin:.4em 0 1em 0; text-align:left; }
+  .cbm-article .cbm-pq-left { float:left; margin-left:-0.75in; margin-right:1.6em; }
+  .cbm-article .cbm-pq-right { float:right; margin-right:-0.75in; margin-left:1.6em; }
+}
+.cbm-article .cbm-rule, .cbm-article .cbm-footnotes { clear:both; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>Building a CBM article page</h1>
+  <p class="standfirst">What the converter hands you, how to put it on the site,
+     and what every part of the markup is for.</p>
+  <p class="version">
+    <span>Matches converter <strong>1.2.0</strong></span>
+    <span>Updated <strong>06 October 2026</strong></span>
+    <span><a href="https://github.com/RexBHavgreau/cbm-squarespace-tool/releases">Releases</a></span>
+  </p>
+</header>
+
+<h2 class="section">Pull quotes, working</h2>
+<p>The article carries its own styling, so this needs nothing set up on the site.
+   Below 900 pixels the quotes stop floating and become centred blocks.</p>
+<div class="hero cbm-article">
+  <aside class="cbm-pullquote cbm-pq-left">
+    <p class="cbm-pullquote-text">Baptism is not the final step of salvation.</p>
+    <p class="cbm-share"><a href="#" title="Share on X"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.9 2H22l-7.2 8.3L23.3 22h-6.6l-5.2-6.8L5.6 22H2.5l7.7-8.8L1.1 2h6.8l4.7 6.2zm-1.1 18h1.7L7.3 3.8H5.5z"/></svg></a><a href="#" title="Share on Facebook"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M14 9h3V6h-3c-2.2 0-4 1.8-4 4v2H8v3h2v7h3v-7h3l1-3h-4v-2c0-.6.4-1 1-1z"/></svg></a><a href="#" title="Share by email"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="2"/><path d="M3 6l9 6.5L21 6" stroke-linecap="round" stroke-linejoin="round"/></svg></a></p>
+  </aside>
+  <p>Second, baptism is not the final step of salvation. If it were, the thief on the
+     cross could have had no hope, and Paul would not have thanked God that he baptised
+     so few at Corinth. The Reformers returned to this point repeatedly, because the
+     alternative makes the sacrament the thing that saves.</p>
+  <p>The quotes alternate down the article: the first sits left, the next right, and so
+     on. That is worked out in reading order, so inserting one in the middle renumbers
+     the rest by itself.</p>
+</div>
+<p class="resize-hint">Drag this window narrower than 900 pixels to see the mobile behaviour.</p>
+
+<h2 class="section">What the editors send you</h2>
+<p>Two files per article, holding exactly the same thing, named with the date and time
+   of conversion.</p>
+<ul>
+  <li><strong>The .html</strong> is for looking at in a browser, to check the article works.</li>
+  <li><strong>The .txt</strong> is for copying the code. It opens in Notepad.</li>
+</ul>
+<p>Both begin with the title and author as plain text, above a marked line:</p>
+<pre class="block">TITLE
+Water Baptism&#8217;s True Role in the Gospel
+
+AUTHOR
+Aleksander Gurtaev
+
+----- paste everything below this line into the Code Block -----</pre>
+<p>Those two are for Squarespace&#8217;s own title and author fields. They sit above the line
+   so they cannot be pasted into the article by accident.</p>
+
+<h2 class="section">Putting it on the site</h2>
+<ol class="steps">
+  <li>Open the <strong>.txt</strong>. Cut the title and the author from above the marked
+      line and paste them into Squarespace&#8217;s own fields.</li>
+  <li>Select everything below the marked line and copy it.</li>
+  <li>Add a <strong>Code Block</strong>. Not a Text Block &#8212; a Text Block strips the
+      id attributes the footnotes depend on, and every footnote link stops working.</li>
+  <li>Delete the placeholder content, paste, and check the block is set to HTML with
+      &#8220;Display Source&#8221; unticked.</li>
+  <li>Save and look at the <em>published</em> page. Code Blocks often do not render inside
+      the editor, so the editor preview proves nothing.</li>
+  <li>Click a few footnotes on the live page: the raised number should jump down, and the
+      number at the foot should jump back.</li>
+</ol>
+<div class="warn">
+  <p>If the article has photographs, they are not in the code. Place them as ordinary
+     Image Blocks and split the text into two Code Blocks around each one. Footnote links
+     still work across blocks, because it is all one page.</p>
+</div>
+
+<h2 class="section">Every element, and what it is for</h2>
+<p>The rendering on the left is produced by the code on the right.</p>
+<section class="spec">
+  <div class="spec-head"><h3>Blurb</h3><p class="note">Opens the article, set larger than the body. Comes from the Blurb style in Word.</p></div>
+  <div class="spec-render cbm-article"><p class="cbm-blurb">Russian evangelicalism developed under the influence of Orthodoxy rather than the Reformation.</p></div>
+  <pre class="spec-code"><code>&lt;p class=&quot;cbm-blurb&quot;&gt;Russian evangelicalism developed under the influence of Orthodoxy rather than the Reformation.&lt;/p&gt;</code></pre>
+</section>
+<section class="spec">
+  <div class="spec-head"><h3>Reading time</h3><p class="note">Counted from the body at 200 words a minute. The clock is drawn in the page, not an image file.</p></div>
+  <div class="spec-render cbm-article"><p class="cbm-read"><svg class="cbm-clock" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="8" cy="8" r="6.4"/><path d="M8 4.3V8.2l2.5 1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>27 min read</p></div>
+  <pre class="spec-code"><code>&lt;p class=&quot;cbm-read&quot;&gt;&lt;svg class=&quot;cbm-clock&quot; viewBox=&quot;0 0 16 16&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;1.5&quot; aria-hidden=&quot;true&quot;&gt;&lt;circle cx=&quot;8&quot; cy=&quot;8&quot; r=&quot;6.4&quot;/&gt;&lt;path d=&quot;M8 4.3V8.2l2.5 1.5&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;/&gt;&lt;/svg&gt;27 min read&lt;/p&gt;</code></pre>
+</section>
+<section class="spec">
+  <div class="spec-head"><h3>Section heading</h3><p class="note">Always h2 for top-level sections. There is no h1: Squarespace supplies the page title.</p></div>
+  <div class="spec-render cbm-article"><h2>Baptism and the Gospel</h2></div>
+  <pre class="spec-code"><code>&lt;h2&gt;Baptism and the Gospel&lt;/h2&gt;</code></pre>
+</section>
+<section class="spec">
+  <div class="spec-head"><h3>Body text</h3><p class="note">No class and no styling, so it inherits whatever Paragraph 2 is set to in Site Styles.</p></div>
+  <div class="spec-render cbm-article"><p>The Protestant Reformation spawned a multitude of disagreements about the doctrine of water baptism.</p></div>
+  <pre class="spec-code"><code>&lt;p&gt;The Protestant Reformation spawned a multitude of disagreements about the doctrine of water baptism.&lt;/p&gt;</code></pre>
+</section>
+<section class="spec">
+  <div class="spec-head"><h3>Block quotation</h3><p class="note">A quotation from another source. Styled by your theme, not by the article.</p></div>
+  <div class="spec-render cbm-article"><blockquote><p>We do not become members of Christ’s body by the act of baptism.</p></blockquote></div>
+  <pre class="spec-code"><code>&lt;blockquote&gt;&lt;p&gt;We do not become members of Christ’s body by the act of baptism.&lt;/p&gt;&lt;/blockquote&gt;</code></pre>
+</section>
+<section class="spec">
+  <div class="spec-head"><h3>Verse</h3><p class="note">Scripture or poetry. One paragraph per stanza, lines separated by br, with a hanging indent.</p></div>
+  <div class="spec-render cbm-article"><p class="cbm-verse">The LORD is my shepherd;<br/>I shall not want.</p></div>
+  <pre class="spec-code"><code>&lt;p class=&quot;cbm-verse&quot;&gt;The LORD is my shepherd;&lt;br/&gt;I shall not want.&lt;/p&gt;</code></pre>
+</section>
+<section class="spec">
+  <div class="spec-head"><h3>Hebrew</h3><p class="note">A paragraph that is mostly Hebrew is marked right to left. Greek is tagged but not reversed.</p></div>
+  <div class="spec-render cbm-article"><p lang="he" dir="rtl">שְׁמַע יִשְׂרָאֵל</p></div>
+  <pre class="spec-code"><code>&lt;p lang=&quot;he&quot; dir=&quot;rtl&quot;&gt;שְׁמַע יִשְׂרָאֵל&lt;/p&gt;</code></pre>
+</section>
+<section class="spec">
+  <div class="spec-head"><h3>Author bio</h3><p class="note">Moved to the end of the article, above the footnotes.</p></div>
+  <div class="spec-render cbm-article"><p class="cbm-bio">Alex is the dean and New Testament Chair at Samara Center for Biblical Training.</p></div>
+  <pre class="spec-code"><code>&lt;p class=&quot;cbm-bio&quot;&gt;Alex is the dean and New Testament Chair at Samara Center for Biblical Training.&lt;/p&gt;</code></pre>
+</section>
+<section class="spec">
+  <div class="spec-head"><h3>Footnotes</h3><p class="note">The number at the foot links back to the callout. This is why it must be a Code Block: a Text Block strips the id attributes and every link dies.</p></div>
+  <div class="spec-render cbm-article"><p>A sentence with a note.<sup><a href="#demo-fn1" id="demo-ref1">1</a></sup></p>
+<ol class="cbm-footnotes"><li id="demo-fn1"><p><a href="#demo-ref1" class="footnote-back">1.</a>&#160;See Jonathan H. Rainbow, <em>Confessor Baptism</em>, 189–92.</p></li></ol></div>
+  <pre class="spec-code"><code>&lt;p&gt;A sentence with a note.&lt;sup&gt;&lt;a href=&quot;#demo-fn1&quot; id=&quot;demo-ref1&quot;&gt;1&lt;/a&gt;&lt;/sup&gt;&lt;/p&gt;
+&lt;ol class=&quot;cbm-footnotes&quot;&gt;&lt;li id=&quot;demo-fn1&quot;&gt;&lt;p&gt;&lt;a href=&quot;#demo-ref1&quot; class=&quot;footnote-back&quot;&gt;1.&lt;/a&gt;&amp;#160;See Jonathan H. Rainbow, &lt;em&gt;Confessor Baptism&lt;/em&gt;, 189–92.&lt;/p&gt;&lt;/li&gt;&lt;/ol&gt;</code></pre>
+</section>
+
+<h2 class="section">The one thing to set up once</h2>
+<p>Everything above works with no site-wide setup. Hebrew is the exception: the site font
+   does not position Hebrew vowel points correctly, so a Hebrew face has to be added under
+   the same family name, scoped to the Hebrew range.</p>
+<p>Upload the font through Manage Custom Files in Design &#8250; Custom CSS, then add this
+   below whatever declares the site font. Put the cursor between the brackets of
+   <code>url()</code> and click the uploaded file to insert its address.</p>
+<pre class="block">@font-face {
+  font-family: 'Tinos';
+  src: url();
+  unicode-range: U+0590-05FF, U+FB1D-FB4F, U+200F;
+}</pre>
+<p>Latin text is untouched, and the Hebrew font is only downloaded on pages that contain
+   Hebrew.</p>
+
+<h2 class="section">If something looks wrong</h2>
+<dl class="faults">
+  <dt>Footnotes do nothing on the published page</dt>
+  <dd>A Text Block was used instead of a Code Block.</dd>
+  <dt>The share icons do nothing</dt>
+  <dd>The short script at the very end of the file was not included in the paste. Copy
+      everything, including what comes after the last paragraph.</dd>
+  <dt>Pull quotes sit centred on a wide screen</dt>
+  <dd>The article&#8217;s own style block was not pasted, or something on the page is
+      overriding it. The styling is near the top of the pasted code, inside a style tag.</dd>
+  <dt>Hebrew letters and vowel points do not line up</dt>
+  <dd>The font setup above has not been added, or it sits above the rule that declares
+      the site font instead of below it.</dd>
+  <dt>You need to know which version produced an article</dt>
+  <dd>Every file begins with a hidden comment naming it. It never shows on the page and
+      survives into the Code Block.</dd>
+</dl>
+
+</div>
+</body>
+</html>

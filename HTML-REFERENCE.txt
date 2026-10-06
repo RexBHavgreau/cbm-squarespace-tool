@@ -1,0 +1,259 @@
+===============================================================
+ CBM ARTICLE CONVERTER - WHAT THE HTML LOOKS LIKE
+ A reference for whoever builds and maintains the pages
+ Version 1.2.0
+===============================================================
+
+Every article the converter produces follows the same shape.
+Nothing is random, and nothing depends on the article it came
+from. If you know this page, you know all of them.
+
+Two principles explain most of the decisions here:
+
+1. STYLING IS WRITTEN INTO EACH ELEMENT, not into a stylesheet.
+   A <style> block inside a Squarespace Code Block applies to
+   the WHOLE PAGE, not just the article, so it would restyle
+   the header, footer and sidebar too. Inline styles cannot
+   leak. The cost is verbose markup; the benefit is that an
+   article cannot damage the rest of the site.
+
+2. COLOURS ARE NEVER NAMED. Rules and icons use currentColor,
+   so they take the colour of the surrounding text and work on
+   a light or a dark theme without being told which.
+
+
+---------------------------------------------------------------
+ THE SHAPE OF A FILE
+---------------------------------------------------------------
+
+  TITLE
+  Water Baptism's True Role in the Gospel
+
+  AUTHOR
+  Aleksander Gurtaev
+
+  ----- paste everything below this line into the Code Block -----
+
+  <!-- CBM Article Tools, Version 1.2.0 - converted ... -->
+
+  <p style="font-size:1.15em; ...">            the blurb
+  <p style="font-style:italic;">               article note
+  <p style="text-align:center; font-size:0.78em; ...">
+      <svg ...>27 min read                     reading time
+  <hr style="...">                             closes front matter
+
+  <h2 style="text-align:center;">              sections
+  <p>                                          body
+  <blockquote><p>                              quotations
+  <aside class="cbm-pullquote cbm-pq-left">    pull quotes
+  <p style="margin-left:2.5em; ...">           verse
+
+  <hr style="...">                             closes the article
+  <p style="text-align:center; font-style:italic; font-size:0.9em;">
+                                               author bio
+
+  <section class="footnotes">                  footnotes
+    <ol style="list-style:none; padding-left:0;">
+      <li id="...">
+
+  <script>                                     share links
+
+The TITLE and AUTHOR block above the marked line is plain
+text, not markup. It is cut out and pasted into Squarespace's
+own boxes. Nothing below the line refers to it.
+
+
+---------------------------------------------------------------
+ ELEMENT BY ELEMENT
+---------------------------------------------------------------
+
+HEADINGS
+
+  <h2 style="text-align:center;">Introduction</h2>
+  <h3 style="text-align:center;">...</h3>
+  <h4 style="text-align:left; font-style:italic;">...</h4>
+
+There is no <h1>. The page title is Squarespace's job, so the
+article's top section level is h2. If a source document uses
+Heading 1 for its sections, everything is demoted one level on
+the way in, so this holds whatever arrives.
+
+BODY TEXT
+
+  <p>...</p>
+
+Plain. No class, no style. It inherits whatever the theme
+gives paragraphs, which is what you want.
+
+EMPHASIS
+
+  <em>   italic
+  <strong>   bold
+  <sup>   superscript
+
+Real elements, never a styled span. On the InDesign side these
+are worked out by reading InDesign's own stylesheet, because
+it names its styles things like "CharOverride-1".
+
+BLOCK QUOTATIONS
+
+  <blockquote><p>...</p></blockquote>
+
+Left to the theme. Restyle <blockquote> freely: pull quotes
+are a different element and will not be affected.
+
+PULL QUOTES
+
+  <aside class="cbm-pullquote cbm-pq-left" style="...">
+    <p class="cbm-pullquote-text" style="...">The sentence.</p>
+    <p style="..."><a class="cbm-share-x" href="#">Share</a> ...
+  </aside>
+
+An <aside>, not a <blockquote>, because it is not a quotation
+from elsewhere: it is the article's own sentence promoted for
+emphasis. Keeping them on different elements means you can
+restyle either without touching the other.
+
+The second class alternates down the article:
+
+  cbm-pq-left, cbm-pq-right, cbm-pq-left, ...
+
+Out of the box they are full-width centred blocks. The Custom
+CSS in the user guide floats them into the margins on wide
+screens and leaves them centred on phones.
+
+VERSE
+
+  <p style="margin-left:2.5em; text-indent:-1.25em;">
+    The LORD is my shepherd;<br/>
+    I shall not want.</p>
+
+One paragraph per stanza, lines separated by <br/>. The
+negative text-indent gives a hanging indent, so a long line
+that wraps is visibly a continuation rather than a new line of
+poetry.
+
+RULES
+
+  <hr style="border:none; border-top:1px solid currentColor;
+             opacity:0.25; margin:1.6em 0;"/>
+
+Exactly two per article: one closing the front matter, one
+before the author bio. Identical by design.
+
+READING TIME
+
+  <p style="text-align:center; font-size:0.78em;
+            letter-spacing:0.09em; text-transform:uppercase;">
+    <svg ...>27 min read</p>
+
+The clock is drawn inline as SVG, not an image file and not an
+emoji. It inherits the text colour through currentColor and is
+sized in em, so it scales with the type. There is no file to
+upload and nothing to break.
+
+FOOTNOTES
+
+In the text:
+
+  <sup><a href="#footnote-053" id="footnote-053-backlink">1</a></sup>
+
+At the foot:
+
+  <section class="footnotes">
+    <ol style="list-style:none; padding-left:0;">
+      <li id="footnote-053">
+        <p><a href="#footnote-053-backlink"
+              class="footnote-back">1.</a>&#160;See Jonathan ...
+
+The automatic list numbering is switched off because the
+numbers are written in as links. Clicking the raised number
+goes down; clicking the number at the foot comes back.
+
+This is why the article must go in a CODE BLOCK. A Text Block
+strips id attributes, and every one of these links then points
+at nothing.
+
+LANGUAGE
+
+  <p lang="he" dir="rtl" style="text-align:right; ...">
+
+Only on a paragraph that is mostly Hebrew. Greek gets lang="el"
+and nothing else. A Hebrew word inside an English sentence is
+left alone, because browsers handle that correctly by
+themselves.
+
+THE SCRIPT
+
+One small script at the very end, present only when the
+article has pull quotes. It fills in the share links when the
+page loads, because the article's web address is not known
+when the file is written. It reads window.location.href and
+builds the X, Facebook and email addresses from the quote's
+own text.
+
+If the share links do nothing, this script was left out of the
+paste. Copy the whole file, including everything after the
+last paragraph.
+
+
+---------------------------------------------------------------
+ HOOKS YOU CAN STYLE
+---------------------------------------------------------------
+
+These class names are stable and safe to target in Custom CSS:
+
+  .cbm-pullquote         the pull quote box
+  .cbm-pullquote-text    the sentence inside it
+  .cbm-pq-left           a pull quote on the left
+  .cbm-pq-right          a pull quote on the right
+  .cbm-share-x           share link, X
+  .cbm-share-fb          share link, Facebook
+  .cbm-share-email       share link, email
+  .footnote-back         the number at the foot that links back
+  .footnotes             the footnotes container
+
+Remember that inline styles beat class rules. To override one,
+your rule needs !important. That is why the pull quote CSS in
+the user guide uses it: the inline styles are a deliberate
+fallback so the quotes still look intentional if the Custom
+CSS is ever missing.
+
+
+---------------------------------------------------------------
+ WHAT IS DELIBERATELY ABSENT
+---------------------------------------------------------------
+
+No <html>, <head> or <body>. The output is a fragment, because
+that is what a Code Block takes.
+
+No <style> block, for the reason at the top.
+
+No <h1>, no classes on body paragraphs, no wrapper div around
+the article, no inline colours, no web fonts, no images.
+
+Images are never carried across. Place them as Image Blocks
+and split the text into two Code Blocks around each one.
+Footnote links still work across blocks: it is all one page.
+
+
+---------------------------------------------------------------
+ IF YOU ARE CHANGING THE HOUSE LOOK
+---------------------------------------------------------------
+
+Most of what you would want to change lives in one place: the
+STYLE dictionary near the top of core.py. Sizes, alignments,
+the rule weight and the pull quote box are all there as plain
+CSS strings. Change one and every article converted afterwards
+follows.
+
+Already-published articles keep the styling they were built
+with, since it is written into them. If a change needs to
+apply retrospectively, those articles have to be converted
+again and re-pasted.
+
+That is the real trade-off of inline styling, and worth
+knowing before you ask for a change: it is safe, but it is not
+retroactive.
+
+===============================================================
