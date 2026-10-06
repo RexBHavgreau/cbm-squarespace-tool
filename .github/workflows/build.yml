@@ -1,5 +1,9 @@
 name: Build the apps
 
+# Action versions must run on Node 24: Node 20 was removed from the runners
+# in September 2026. checkout v5, setup-python v6 and upload-artifact v7 are
+# the first majors built for it.
+#
 # Runs when a release is published. Each job builds on the system it is for,
 # because PyInstaller cannot build a Mac app on Windows or the reverse, then
 # attaches the result to that release.
@@ -15,9 +19,27 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - name: Check the files are where the build expects them
+        shell: bash
+        run: |
+          echo "Working in: $(pwd)"
+          echo "--- what is here ---"
+          ls -la
+          missing=0
+          for f in app.py core.py USER-GUIDE.txt HTML-REFERENCE.txt BUILD-NOTES.txt; do
+            if [ ! -f "$f" ]; then echo "MISSING: $f"; missing=1; fi
+          done
+          if [ "$missing" = "1" ]; then
+            echo
+            echo "These files must sit at the TOP LEVEL of the repository,"
+            echo "not inside a folder. The listing above shows what is there."
+            exit 1
+          fi
+          echo "All present."
+
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -47,7 +69,7 @@ jobs:
 
       - name: Keep it even when run by hand
         if: github.event_name != 'release'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows
           path: dist/*.exe
@@ -55,9 +77,27 @@ jobs:
   macos:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - name: Check the files are where the build expects them
+        shell: bash
+        run: |
+          echo "Working in: $(pwd)"
+          echo "--- what is here ---"
+          ls -la
+          missing=0
+          for f in app.py core.py USER-GUIDE.txt HTML-REFERENCE.txt BUILD-NOTES.txt; do
+            if [ ! -f "$f" ]; then echo "MISSING: $f"; missing=1; fi
+          done
+          if [ "$missing" = "1" ]; then
+            echo
+            echo "These files must sit at the TOP LEVEL of the repository,"
+            echo "not inside a folder. The listing above shows what is there."
+            exit 1
+          fi
+          echo "All present."
+
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -95,7 +135,7 @@ jobs:
 
       - name: Keep it even when run by hand
         if: github.event_name != 'release'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: macos
           path: dist/*-mac.zip
