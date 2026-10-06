@@ -113,6 +113,7 @@ jobs:
           python -m PyInstaller --onefile --windowed --clean --noconfirm
           --name "CBM Article Converter ${{ steps.version.outputs.value }}"
           --collect-all mammoth
+          --argv-emulation
           --add-data "USER-GUIDE.txt:."
           --add-data "HTML-REFERENCE.txt:."
           --add-data "BUILD-NOTES.txt:."
