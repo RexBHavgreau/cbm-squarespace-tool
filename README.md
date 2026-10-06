@@ -52,6 +52,17 @@ number.
 
 ## Releases
 
+### 1.3.0
+
+Preferences. What goes into an article, and in what order, is now yours
+to set: the blurb, article note, reading time, author bio and a new
+article-wide share row can each be included or left out and moved
+around the article body. Heading alignment, reading speed, whether the
+article carries its own styling, and where finished files are written
+are all settings too, with one button to put everything back to the
+defaults. The guides open inside the app, and an article can be dropped
+straight onto the application.
+
 ### 1.2.0
 
 The guides come with the app: a Guide button opens them, so they always

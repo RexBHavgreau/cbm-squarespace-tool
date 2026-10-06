@@ -1,6 +1,6 @@
 ===============================================================
  CBM ARTICLE CONVERTER - USER GUIDE
- Version 1.2.0
+ Version 1.3.0
 ===============================================================
 
 This turns a finished article into HTML that can be pasted
@@ -324,7 +324,7 @@ Share links on pull quotes do nothing
 
 Every finished file begins with a hidden line:
 
-  <!-- CBM Article Tools, Version 1.2.0 - converted 2026-10-04
+  <!-- CBM Article Tools, Version 1.3.0 - converted 2026-10-04
        10:32 - from: Gurtaev_Water_Baptism.html -->
 
 It never shows on the page. It survives into the Code Block,
@@ -332,6 +332,110 @@ so a published article can always be traced to the build that
 made it. The build number is also in the app's title bar.
 
 ===============================================================
+
+
+---------------------------------------------------------------
+ DROPPING AN ARTICLE ONTO THE APP
+---------------------------------------------------------------
+
+Instead of opening the app and choosing a file, drag the
+article onto the application itself. A shortcut works just as
+well, so one on the desktop is worth making.
+
+Several files can be dropped at once.
+
+The app opens and asks first, naming the file and listing the
+settings it is about to use:
+
+  Convert now
+  Open, don't convert yet
+  Cancel
+
+That middle option loads the article and waits, so Preferences
+can be checked or changed before anything is written. Cancel
+clears it and does nothing.
+
+The confirmation exists because settings may have moved since
+last time. Rather than finding out afterwards, the ones that
+are not at their defaults are listed before anything happens.
+
+
+---------------------------------------------------------------
+ THE DESKTOP SHORTCUT
+---------------------------------------------------------------
+
+Each version is a separate file, so without tidying up the
+Desktop collects a shortcut per version.
+
+If you already have a shortcut to an older version, the app
+offers to repoint it after a download and remove the old one.
+If you have none, it does not ask: people who do not use
+shortcuts are never interrupted about them.
+
+On a Mac the download is a zip, so expand it first and then use
+Preferences > Desktop shortcut to point at the app.
+
+Preferences > Desktop shortcut can be used at any time, whether
+or not a shortcut is there already, to point at whichever copy
+of the app you want, wherever it is kept.
+
+Only shortcuts named after this app are removed. Nothing else
+on the Desktop is touched.
+
+
+---------------------------------------------------------------
+ PREFERENCES
+---------------------------------------------------------------
+
+Preferences > Preferences... controls what an article contains
+and how it is written.
+
+WHAT GOES IN, AND IN WHAT ORDER
+
+  Blurb, Article note, Reading time, Share this article and
+  Author bio can each be included or left out, and moved.
+
+  Select one and use Move up or Move down. "Include / omit"
+  ticks and unticks it.
+
+  The article body is always included, but it can be moved, so
+  the bio can sit above it if that is what the site wants.
+  Footnotes always come last, because they are built from the
+  body and nothing sensible follows them.
+
+  A hairline rule is drawn wherever the body meets something
+  else, so you do not have to place those yourself.
+
+HEADINGS
+
+  Left, centred, right, or left to the site. The last leaves
+  headings alone so the site's own settings decide.
+
+READING TIME
+
+  Words a minute. 200 is the default; lower it for a heavier
+  read, raise it for a lighter one.
+
+STYLING
+
+  The article normally carries its own styling, which is what
+  makes pull quotes float without anything set up site-wide.
+  Turning it off leaves everything to the site, and heading
+  alignment goes with it.
+
+WHERE FINISHED FILES GO
+
+  Beside the original, or a folder of your choosing.
+
+RESETTING
+
+  "Reset to defaults" in the dialog, or Preferences > Reset
+  everything to defaults, puts it all back. The house template
+  is remembered separately and is not affected.
+
+Any setting that is not at its default is noted in the hidden
+comment at the top of each converted file, so an article that
+looks unexpected can always be explained.
 
 
 ---------------------------------------------------------------

@@ -183,3 +183,30 @@ one will not run on the other. Build on the oldest machine, or add:
 
 The built .app is not signed, so the first run on each machine is
 refused. Right-click the app, choose Open, then confirm.
+
+
+BUILDING AUTOMATICALLY ON GITHUB
+================================
+
+.github/workflows/build.yml builds both apps whenever a release is
+published, and attaches them to that release. Nobody has to run
+anything, and the two apps always come from the same source.
+
+To use it:
+
+  1. Put the file in the repository at .github/workflows/build.yml
+  2. Settings > Actions > General > Workflow permissions:
+     choose "Read and write permissions", and save.
+  3. Publish a release. Watch it run under the Actions tab.
+
+It can also be run by hand from the Actions tab, with "Run workflow".
+Done that way it does not touch any release: the apps appear as
+downloadable artifacts on the run itself, which is a safe way to test
+a change before releasing.
+
+The Mac job runs on macOS on Apple Silicon, so the app it builds will
+not run on an Intel Mac. If one of those needs to be supported, change
+runs-on from macos-latest to macos-13.
+
+Neither app is signed. The first run on each machine is still
+challenged, exactly as before.

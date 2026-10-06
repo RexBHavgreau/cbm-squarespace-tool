@@ -77,7 +77,7 @@ echo "  Building. This takes a minute or two."
 echo
 if ! "$PY" -m PyInstaller --onefile --windowed --clean --noconfirm \
     --name "$APPNAME" --distpath "./dist" --workpath "./build" \
-    --specpath "." --collect-all mammoth \
+    --specpath "." --collect-all mammoth --argv-emulation \
     --add-data "USER-GUIDE.txt:." --add-data "HTML-REFERENCE.txt:." \
     --add-data "BUILD-NOTES.txt:." ./app.py >> "$LOG" 2>&1; then
     echo

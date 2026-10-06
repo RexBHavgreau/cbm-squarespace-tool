@@ -6,11 +6,80 @@ import re, math, copy, datetime, pathlib, zipfile
 import mammoth
 from bs4 import BeautifulSoup, Tag, NavigableString
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 
 # Kept so anything that still asks for a build number gets something sensible.
 BUILD = VERSION
 WORDS_PER_MINUTE = 200
+
+
+# ---------------------------------------------------------------- options ---
+# Everything adjustable lives here. "Reset to defaults" restores exactly this,
+# so as the house style settles these values move and everyone follows.
+
+BLOCK_LABELS = {
+    "blurb": "Blurb",
+    "note": "Article note",
+    "read": "Reading time",
+    "body": "Article body",
+    "share": "Share this article",
+    "bio": "Author bio",
+}
+FIXED_BLOCK = "body"          # always present; may be moved
+PINNED_LAST = "footnotes"     # generated from the body, so nothing follows it
+
+DEFAULTS = {
+    "order": ["blurb", "note", "read", "body", "share", "bio"],
+    "include": {"blurb": True, "note": True, "read": True,
+                "body": True, "share": False, "bio": True},
+    "heading_align": "center",      # left, center, right, or none
+    "words_per_minute": 200,
+    "style_block": True,            # emit the article's own styling
+    "output": "beside",             # beside the original, or a chosen folder
+    "output_folder": "",
+    "check_at_startup": True,
+}
+
+
+def options(settings=None):
+    """Settings merged over the defaults, so a missing key is never fatal."""
+    data = dict(DEFAULTS)
+    data["include"] = dict(DEFAULTS["include"])
+    data["order"] = list(DEFAULTS["order"])
+    for key, value in (settings or load_settings()).items():
+        if key == "include" and isinstance(value, dict):
+            data["include"].update(value)
+        elif key == "order" and isinstance(value, list):
+            known = [b for b in value if b in BLOCK_LABELS]
+            for b in DEFAULTS["order"]:
+                if b not in known:
+                    known.append(b)
+            data["order"] = known
+        elif key in data:
+            data[key] = value
+    # A style block is what carries the alignment, so without it there is
+    # nothing to align with and the theme decides.
+    if not data["style_block"]:
+        data["heading_align"] = "none"
+    data["include"][FIXED_BLOCK] = True
+    return data
+
+
+def non_default(opts):
+    """The settings that differ from the defaults, for the file's stamp."""
+    out = []
+    if opts["order"] != DEFAULTS["order"]:
+        out.append("order=" + ",".join(opts["order"]))
+    off = [b for b, on in opts["include"].items() if not on and DEFAULTS["include"].get(b)]
+    on = [b for b, v in opts["include"].items() if v and not DEFAULTS["include"].get(b)]
+    if off:
+        out.append("off=" + ",".join(sorted(off)))
+    if on:
+        out.append("on=" + ",".join(sorted(on)))
+    for key in ("heading_align", "words_per_minute", "style_block"):
+        if opts[key] != DEFAULTS[key]:
+            out.append(f"{key}={opts[key]}")
+    return out
 
 # Word paragraph styles -> internal roles. Matched loosely: a style called
 # "Verse Block" counts as verse, "Side-Bar" as a pull quote.
@@ -48,7 +117,7 @@ STYLE = {
 # Every rule is scoped to .cbm-article, so none of it can reach the rest of
 # the page. That is what makes a <style> block safe inside a Code Block, and
 # it means floats and media queries work without anything set up site-wide.
-ARTICLE_CSS = """<style>
+ARTICLE_CSS_TEMPLATE = """<style>
 .cbm-article .cbm-blurb { font-size:1.15em; line-height:1.5; }
 .cbm-article .cbm-note { font-style:italic; }
 .cbm-article .cbm-clock {
@@ -62,8 +131,7 @@ ARTICLE_CSS = """<style>
   border:none; border-top:1px solid currentColor;
   opacity:0.25; margin:1.6em 0;
 }
-.cbm-article h2, .cbm-article h3 { text-align:center; }
-.cbm-article h4 { text-align:left; font-style:italic; }
+__HEADINGS__
 .cbm-article .cbm-verse { margin-left:2.5em; text-indent:-1.25em; }
 .cbm-article .cbm-bio {
   text-align:center; font-style:italic; font-size:0.9em;
@@ -80,6 +148,14 @@ ARTICLE_CSS = """<style>
   margin:0 0 0.5em; font-style:italic; font-size:1.25em; line-height:1.4;
 }
 .cbm-article .cbm-share { margin:0; line-height:1; }
+.cbm-article .cbm-share-article {
+  text-align:center; margin:1.2em 0; line-height:1;
+}
+.cbm-article .cbm-share-article::before {
+  content:"Share this article"; display:block; font-size:0.72em;
+  letter-spacing:0.09em; text-transform:uppercase; opacity:0.7;
+  margin-bottom:0.5em;
+}
 .cbm-article .cbm-share a {
   display:inline-block; margin:0 0.45em; color:currentColor;
   text-decoration:none; opacity:0.75;
@@ -110,6 +186,19 @@ ARTICLE_CSS = """<style>
 .cbm-article .cbm-rule, .cbm-article .cbm-footnotes,
 .cbm-article section { clear:both; }
 </style>"""
+
+
+def article_css(opts):
+    """The article's own styling. Heading alignment is the one part the
+    site may want to own, so it can be left out entirely."""
+    align = opts.get("heading_align", "center")
+    if align == "none":
+        headings = "/* heading alignment left to the site */"
+    else:
+        headings = (f".cbm-article h2, .cbm-article h3 {{ text-align:{align}; }}\n"
+                    f".cbm-article h4 {{ text-align:{align}; font-style:italic; }}")
+    return ARTICLE_CSS_TEMPLATE.replace("__HEADINGS__", headings)
+
 
 # Share icons, drawn inline so they take the text colour and need no files.
 ICONS = {
@@ -429,6 +518,25 @@ def mark_languages(soup):
 
 # ------------------------------------------------------------- pull quotes ---
 
+def share_row(soup, classes=("cbm-share",)):
+    """The three icons, in a paragraph. Used by pull quotes and by the
+    article-wide row, so they cannot drift apart."""
+    row = soup.new_tag("p")
+    row["class"] = list(classes)
+    for cls, icon, label in (("cbm-share-x", "x", "Share on X"),
+                             ("cbm-share-fb", "fb", "Share on Facebook"),
+                             ("cbm-share-email", "email", "Share by email")):
+        a = soup.new_tag("a", href="#")
+        a["class"] = [cls]
+        a["title"] = label
+        a["aria-label"] = label
+        if cls != "cbm-share-email":
+            a["target"], a["rel"] = "_blank", "noopener"
+        a.append(BeautifulSoup(ICONS[icon], "html.parser"))
+        row.append(a)
+    return row
+
+
 def build_pull_quotes(soup):
     """Turn tagged paragraphs into aside blocks with share links."""
     made = []
@@ -445,20 +553,7 @@ def build_pull_quotes(soup):
         for child in list(content.contents):
             text_p.append(child.extract())
         aside.append(text_p)
-        share = soup.new_tag("p")
-        share["class"] = ["cbm-share"]
-        for cls, icon, label in (("cbm-share-x", "x", "Share on X"),
-                                 ("cbm-share-fb", "fb", "Share on Facebook"),
-                                 ("cbm-share-email", "email", "Share by email")):
-            a = soup.new_tag("a", href="#")
-            a["class"] = [cls]
-            a["title"] = label
-            a["aria-label"] = label
-            if cls != "cbm-share-email":
-                a["target"], a["rel"] = "_blank", "noopener"
-            a.append(BeautifulSoup(ICONS[icon], "html.parser"))
-            share.append(a)
-        aside.append(share)
+        aside.append(share_row(soup))
         p.replace_with(aside)
         made.append(aside)
     return made
@@ -530,7 +625,7 @@ def alternate_sides(soup):
 
 # ------------------------------------------------------------ assembly -----
 
-def reading_minutes(soup):
+def reading_minutes(soup, per_minute=200):
     clone = BeautifulSoup(str(soup), "html.parser")
     for el in clone.find_all(["aside", "section"]):
         el.decompose()
@@ -540,7 +635,7 @@ def reading_minutes(soup):
         if el.find("li", id=re.compile(r"(fn\d|footnote)")):
             el.decompose()
     words = [w for w in re.split(r"\s+", clone.get_text(" ")) if re.search(r"\w", w)]
-    return len(words), max(1, math.ceil(len(words) / WORDS_PER_MINUTE)) if words else 0
+    return len(words), max(1, math.ceil(len(words) / max(1, per_minute))) if words else 0
 
 
 def footnote_start(soup):
@@ -567,8 +662,12 @@ def rule(soup):
     return hr
 
 
-def assemble(soup):
-    """Front matter at the top, bio at the end, title and author lifted out."""
+def assemble(soup, opts):
+    """
+    Lift the title and author out, then rebuild the article in the order the
+    settings ask for. The body is always present but may be moved; the
+    footnotes always come last, because they are generated from the body.
+    """
     meta = {"title": "", "author": ""}
     for role in ("title", "author"):
         el = soup.find("p", attrs={"data-role": role})
@@ -576,53 +675,61 @@ def assemble(soup):
             meta[role] = plain(el)
             el.decompose()
 
-    for el in soup.find_all("p", attrs={"data-role": "blurb"}):
-        el["class"] = ["cbm-blurb"]
-        del el["data-role"]
-    for el in soup.find_all("p", attrs={"data-role": "note"}):
-        el["class"] = ["cbm-note"]
-        del el["data-role"]
-    for el in soup.find_all("p", attrs={"data-role": "verse"}):
-        el["class"] = ["cbm-verse"]
-        del el["data-role"]
+    for role, cls in (("blurb", "cbm-blurb"), ("note", "cbm-note"),
+                      ("verse", "cbm-verse")):
+        for el in soup.find_all("p", attrs={"data-role": role}):
+            el["class"] = [cls]
+            del el["data-role"]
     for el in soup.find_all("p", attrs={"data-role": "quote"}):
         el.name = "blockquote"
         del el["data-role"]
 
-    words, minutes = reading_minutes(soup)
+    words, minutes = reading_minutes(soup, opts.get("words_per_minute", 200))
 
+    # Collect the movable blocks out of the flow.
+    blocks = {}
+    blocks["blurb"] = [el.extract() for el in soup.find_all("p", class_="cbm-blurb")]
+    blocks["note"] = [el.extract() for el in soup.find_all("p", class_="cbm-note")]
     bios = soup.find_all("p", attrs={"data-role": "author_bio"})
-    bio_nodes = []
     for el in bios:
         el["class"] = ["cbm-bio"]
         del el["data-role"]
-        bio_nodes.append(el.extract())
+    blocks["bio"] = [el.extract() for el in bios]
 
-    # reading time after the blurb, else before the first heading
     read_p = soup.new_tag("p")
     read_p["class"] = ["cbm-read"]
     read_p.append(BeautifulSoup(CLOCK, "html.parser"))
     read_p.append(NavigableString(f"{minutes} min read"))
-    anchor = soup.find("p", class_="cbm-blurb")
-    if anchor is not None:
-        anchor.insert_after(read_p)
-        read_p.insert_after(rule(soup))
-    else:
-        first_head = soup.find(["h1", "h2", "h3", "h4"])
-        if first_head is not None:
-            first_head.insert_before(read_p)
-            read_p.insert_after(rule(soup))
+    blocks["read"] = [read_p]
+    blocks["share"] = [share_row(soup, ("cbm-share", "cbm-share-article"))]
 
-    # bio at the end, above the footnotes, behind a matching rule
-    if bio_nodes:
-        start = footnote_start(soup)
-        block = [rule(soup)] + bio_nodes
-        if start is not None:
-            for node in block:
-                start.insert_before(node)
-        else:
-            for node in block:
-                soup.append(node)
+    # Whatever is left is the body, with the footnotes pulled off the end.
+    footnotes = []
+    start = footnote_start(soup)
+    if start is not None:
+        node = start
+        while node is not None:
+            nxt = node.next_sibling
+            footnotes.append(node.extract())
+            node = nxt
+    body = [el for el in list(soup.contents)]
+    for el in body:
+        el.extract()
+    blocks["body"] = body
+
+    # Rebuild in order, with a rule wherever the body meets something else.
+    order = [b for b in opts["order"] if opts["include"].get(b)]
+    for index, name in enumerate(order):
+        nodes = blocks.get(name) or []
+        if not nodes:
+            continue
+        previous = order[index - 1] if index else None
+        if previous and (previous == "body") != (name == "body"):
+            soup.append(rule(soup))
+        for node in nodes:
+            soup.append(node)
+    for node in footnotes:
+        soup.append(node)
     return meta, words, minutes
 
 
@@ -662,13 +769,14 @@ def tidy_lines(html):
     return html.strip()
 
 
-def convert(path, decide_orphans=None):
+def convert(path, decide_orphans=None, opts=None):
     """
     Convert one file. decide_orphans(list_of_texts) is called when a pull quote
     matches nothing; return True to proceed without them, False to abandon.
     Returns (html, meta, log) or (None, meta, log) if abandoned.
     """
     path = pathlib.Path(path)
+    opts = opts or options()
     log = []
     if path.suffix.lower() == ".docx":
         html, messages = read_docx(path)
@@ -708,17 +816,21 @@ def convert(path, decide_orphans=None):
     linked = number_footnotes(soup)
     tabs = outbound_links_new_tab(soup)
     heads = style_headings(soup)
-    meta, words, minutes = assemble(soup)
+    meta, words, minutes = assemble(soup, opts)
     rtl = mark_languages(soup)
 
     body = restore_svg_case(tidy_lines(soup.decode()))
-    body = ('<div class="cbm-article">\n' + ARTICLE_CSS + "\n\n"
+    styling = (article_css(opts) + "\n\n") if opts["style_block"] else ""
+    body = ('<div class="cbm-article">\n' + styling
             + body.strip() + "\n</div>")
     if soup.find("aside", class_="cbm-pullquote"):
         body = body.rstrip() + "\n" + SHARE_SCRIPT.strip() + "\n"
 
+    changed = non_default(opts)
+    settings_note = ("  - settings: " + "; ".join(changed)) if changed else ""
     stamp = (f"<!-- CBM Article Converter {VERSION} - converted "
-             f"{datetime.datetime.now():%Y-%m-%d %H:%M} - from: {path.name} -->")
+             f"{datetime.datetime.now():%Y-%m-%d %H:%M} - from: {path.name}"
+             f"{settings_note} -->")
     header = ""
     if meta.get("title"):
         header += f"TITLE\n{meta['title']}\n\n"
@@ -740,13 +852,20 @@ def convert(path, decide_orphans=None):
     return header + stamp + "\n" + body.strip() + "\n", meta, log
 
 
-def write_outputs(source, html):
-    """Write .html and .txt beside the original, stamped with the time."""
+def write_outputs(source, html, opts=None):
+    """Write .html and .txt, stamped with the time. Beside the original by
+    default, or into a folder chosen in the settings."""
+    opts = opts or options()
     source = pathlib.Path(source)
+    folder = source.parent
+    if opts.get("output") == "folder" and opts.get("output_folder"):
+        candidate = pathlib.Path(opts["output_folder"])
+        if candidate.is_dir():
+            folder = candidate
     stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M")
     base = re.sub(r"^\d{8}_\d{4}_", "", source.stem)
-    out_html = source.parent / f"{stamp}_{base}.html"
-    out_txt = source.parent / f"{stamp}_{base}.txt"
+    out_html = folder / f"{stamp}_{base}.html"
+    out_txt = folder / f"{stamp}_{base}.txt"
     # Always Windows line endings, whichever machine converted the file.
     # Otherwise an article converted on a Mac arrives as one long line in
     # Notepad, and the two tracks produce visibly different files.
@@ -1112,3 +1231,103 @@ def open_document(filename):
     else:
         subprocess.Popen(["xdg-open", str(target)])
     return target
+
+
+# ------------------------------------------------------------- shortcuts ---
+# Windows calls them shortcuts and stores them as .lnk files; macOS calls the
+# same idea an alias. Both are made through the system rather than by writing
+# a file, so each needs its own small incantation.
+
+SHORTCUT_STEM = "CBM Article Converter"
+
+
+def desktop_path():
+    for candidate in (pathlib.Path.home() / "Desktop",
+                      pathlib.Path.home() / "OneDrive" / "Desktop"):
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
+def existing_shortcuts():
+    """Shortcuts to any version of this app sitting on the Desktop."""
+    import sys
+    desktop = desktop_path()
+    if desktop is None:
+        return []
+    found = []
+    for item in desktop.iterdir():
+        name = item.name
+        if not name.startswith(SHORTCUT_STEM):
+            continue
+        if sys.platform.startswith("win"):
+            if item.suffix.lower() == ".lnk":
+                found.append(item)
+        elif item.is_symlink() or item.suffix == "":
+            found.append(item)
+    return sorted(found)
+
+
+def shortcut_name(target):
+    """A shortcut named for the version it points at."""
+    import sys
+    stem = pathlib.Path(target).stem
+    return stem + (".lnk" if sys.platform.startswith("win") else "")
+
+
+def make_shortcut(target, replace=()):
+    """
+    Put a shortcut to this version on the Desktop, optionally clearing older
+    ones away first. Returns the shortcut's path.
+    """
+    import subprocess
+    import sys
+    import sys as _sys
+    target = pathlib.Path(target).resolve()
+    # Check the target before the Desktop, so the more useful complaint wins.
+    if _sys.platform == "darwin" and target.suffix != ".app":
+        raise ShortcutError(
+            "An alias can only point at the app itself. Expand the downloaded "
+            "zip first, then use Preferences \u203a Desktop shortcut.")
+    if not target.exists():
+        raise ShortcutError(f"{target.name} is not where it was expected.")
+    desktop = desktop_path()
+    if desktop is None:
+        raise ShortcutError("Could not find the Desktop folder.")
+
+    link = desktop / shortcut_name(target)
+    if sys.platform.startswith("win"):
+        script = (
+            "$s = (New-Object -ComObject WScript.Shell).CreateShortcut("
+            f"'{link}'); $s.TargetPath = '{target}'; "
+            f"$s.WorkingDirectory = '{target.parent}'; "
+            "$s.Description = 'CBM Article Converter'; $s.Save()")
+        done = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", script],
+            capture_output=True, text=True)
+        if done.returncode != 0:
+            raise ShortcutError((done.stderr or "").strip()[:200]
+                                or "Windows refused to make the shortcut.")
+    elif sys.platform == "darwin":
+        script = (f'tell application "Finder" to make alias file to '
+                  f'POSIX file "{target}" at POSIX file "{desktop}"')
+        done = subprocess.run(["osascript", "-e", script],
+                              capture_output=True, text=True)
+        if done.returncode != 0:
+            raise ShortcutError((done.stderr or "").strip()[:200]
+                                or "Finder refused to make the alias.")
+    else:
+        raise ShortcutError("Shortcuts are only made on Windows and macOS.")
+
+    for old in replace:
+        old = pathlib.Path(old)
+        if old.exists() and old.resolve() != link.resolve():
+            try:
+                old.unlink()
+            except OSError:
+                pass
+    return link
+
+
+class ShortcutError(Exception):
+    pass
