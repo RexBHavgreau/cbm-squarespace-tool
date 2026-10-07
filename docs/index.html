@@ -99,7 +99,7 @@ a { color:var(--accent); }
   <p class="standfirst">What the converter hands you, how to put it on the site,
      and what every part of the markup is for.</p>
   <p class="version">
-    <span>Matches converter <strong>1.3.0</strong></span>
+    <span>Matches converter <strong>1.4.0</strong></span>
     <span>Updated <strong>06 October 2026</strong></span>
     <span><a href="https://github.com/RexBHavgreau/cbm-squarespace-tool/releases">Releases</a></span>
   </p>
@@ -210,6 +210,46 @@ Aleksander Gurtaev
   <pre class="spec-code"><code>&lt;p&gt;A sentence with a note.&lt;sup&gt;&lt;a href=&quot;#demo-fn1&quot; id=&quot;demo-ref1&quot;&gt;1&lt;/a&gt;&lt;/sup&gt;&lt;/p&gt;
 &lt;ol class=&quot;cbm-footnotes&quot;&gt;&lt;li id=&quot;demo-fn1&quot;&gt;&lt;p&gt;&lt;a href=&quot;#demo-ref1&quot; class=&quot;footnote-back&quot;&gt;1.&lt;/a&gt;&amp;#160;See Jonathan H. Rainbow, &lt;em&gt;Confessor Baptism&lt;/em&gt;, 189–92.&lt;/p&gt;&lt;/li&gt;&lt;/ol&gt;</code></pre>
 </section>
+
+<h2 class="section">The stylesheet</h2>
+<p>Articles no longer carry their own styling. It lives in Custom CSS, so one
+   edit reaches every article on the site, including ones published long ago.
+   Get it from the converter: <strong>Designer &#8250; Copy the article
+   stylesheet</strong>, then paste it into Design &#8250; Custom CSS.</p>
+<p>The block is marked BEGIN and END. Anything you write outside those lines is
+   yours and survives a fresh paste. When the converter changes a class, the
+   release notes say so.</p>
+
+<h2 class="section">Hebrew</h2>
+<p>Squarespace sets the body font through a variable rather than by name, so
+   adding a Hebrew face has to go through that variable. Competing on
+   <code>font-family</code> loses: their selector is more specific.</p>
+<pre class="block">@font-face {
+  font-family: 'CBMHebrew';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url(THE_UPLOADED_FONT_URL) format('woff2');
+  unicode-range: U+0590-05FF, U+FB1D-FB4F, U+200F, U+200E;
+}
+
+:root, body {
+  --body-font-font-family: 'CBMHebrew', 'tinos-h4tbxy', serif;
+}
+
+[lang="he"], [lang="he"] * {
+  --body-font-font-family: 'CBMHebrew', 'tinos-h4tbxy', serif;
+}</pre>
+<p>The <code>unicode-range</code> is what makes this safe: only Hebrew
+   characters use that face, Latin is untouched even in the same sentence, and
+   the font is not downloaded on pages with no Hebrew.</p>
+<div class="warn">
+  <p>The name <code>tinos-h4tbxy</code> is Squarespace&#8217;s own label for the
+     uploaded body font. Change the body font in Site Styles and that name
+     changes, at which point Latin inside Hebrew elements falls back to a plain
+     serif. The Hebrew itself keeps working. Update both places above if the
+     body font is ever changed.</p>
+</div>
 
 <h2 class="section">The one thing to set up once</h2>
 <p>Everything above works with no site-wide setup. Hebrew is the exception: the site font

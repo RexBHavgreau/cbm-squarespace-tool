@@ -52,6 +52,29 @@ number.
 
 ## Releases
 
+### 1.4.0
+
+A linked byline. The Author style now produces "By" and the names in
+the order written, each linked to that author's profile page, with the
+address worked out from the name. Articles with no profile page yet are
+flagged above the code with the exact address to create.
+
+A Designer menu: every article style laid out by element with a browser
+preview, the stylesheet ready to paste into Custom CSS, and a builder
+for article link cards on profile pages.
+
+Styling has moved off the article. The .txt carries classes only, so
+the look comes from Custom CSS and one edit reaches every article ever
+published. The .html still carries the styling so it renders on its own
+when checked. **Articles published before this release keep their own
+copy of the old styling and should be reconverted and re-pasted.**
+
+Also: styles are applied to whichever Word documents are already
+chosen, several at once; a pull quote can no longer be the last thing
+in an article; blurbs and article notes are centred; Hebrew inside an
+English sentence is tagged; and the update download now opens at the
+folder the app is in.
+
 ### 1.3.0
 
 Preferences. What goes into an article, and in what order, is now yours

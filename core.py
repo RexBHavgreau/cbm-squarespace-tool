@@ -2,11 +2,11 @@
 CBM Article Converter - conversion core.
 Version 1.0.0
 """
-import re, math, copy, datetime, pathlib, zipfile
+import re, math, copy, datetime, pathlib, unicodedata, zipfile
 import mammoth
 from bs4 import BeautifulSoup, Tag, NavigableString
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 
 # Kept so anything that still asks for a build number gets something sensible.
 BUILD = VERSION
@@ -17,7 +17,27 @@ WORDS_PER_MINUTE = 200
 # Everything adjustable lives here. "Reset to defaults" restores exactly this,
 # so as the house style settles these values move and everyone follows.
 
+PROFILE_BASE = "/profile/"
+
+
+def author_slug(name):
+    """'Scott N. Callaham' -> 'scott-n-callaham'. The same rule every time, so
+    the link the article carries and the page the designer makes agree."""
+    text = unicodedata.normalize("NFKD", str(name))
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    text = re.sub(r"[^A-Za-z0-9]+", "-", text).strip("-").lower()
+    return text
+
+
+def split_authors(text):
+    """Names as the editor wrote them, in the editor's order."""
+    text = re.sub(r"(?i)^\s*(?:by|written by)\s+", "", str(text).strip())
+    parts = re.split(r"\s*(?:,|;|&|\band\b)\s*", text)
+    return [p.strip() for p in parts if p.strip()]
+
+
 BLOCK_LABELS = {
+    "byline": "Byline (By \u2026)",
     "blurb": "Blurb",
     "note": "Article note",
     "read": "Reading time",
@@ -29,12 +49,16 @@ FIXED_BLOCK = "body"          # always present; may be moved
 PINNED_LAST = "footnotes"     # generated from the body, so nothing follows it
 
 DEFAULTS = {
-    "order": ["blurb", "note", "read", "body", "share", "bio"],
-    "include": {"blurb": True, "note": True, "read": True,
+    "order": ["byline", "blurb", "note", "read", "body", "share", "bio"],
+    "include": {"byline": True, "blurb": True, "note": True, "read": True,
                 "body": True, "share": False, "bio": True},
-    "heading_align": "center",      # left, center, right, or none
+    "profile_base": PROFILE_BASE,
+    "known_authors": [],
+    "style": {},
+    # Left to the site by default: heading alignment is the only thing the
+    # article declares that Squarespace's own Styles menu also controls.
+    "heading_align": "none",        # left, center, right, or none
     "words_per_minute": 200,
-    "style_block": True,            # emit the article's own styling
     "output": "beside",             # beside the original, or a chosen folder
     "output_folder": "",
     "check_at_startup": True,
@@ -57,10 +81,6 @@ def options(settings=None):
             data["order"] = known
         elif key in data:
             data[key] = value
-    # A style block is what carries the alignment, so without it there is
-    # nothing to align with and the theme decides.
-    if not data["style_block"]:
-        data["heading_align"] = "none"
     data["include"][FIXED_BLOCK] = True
     return data
 
@@ -76,10 +96,94 @@ def non_default(opts):
         out.append("off=" + ",".join(sorted(off)))
     if on:
         out.append("on=" + ",".join(sorted(on)))
-    for key in ("heading_align", "words_per_minute", "style_block"):
+    for key in ("heading_align", "words_per_minute"):
         if opts[key] != DEFAULTS[key]:
             out.append(f"{key}={opts[key]}")
     return out
+
+
+# ------------------------------------------------- the look of an article ---
+# One schema drives three things: the controls in the Designer panel, the
+# stylesheet the app exports, and the copy attached to the .html for checking.
+# Adding a control here is enough; nothing else needs changing.
+
+STYLE_SCHEMA = [
+    ("Blurb", [
+        ("blurb_size", "Size", "em", 1.15),
+        ("blurb_line", "Line height", "num", 1.5),
+        ("blurb_align", "Alignment", "align", "center"),
+        ("blurb_italic", "Italic", "bool", False),
+    ]),
+    ("Article note", [
+        ("note_size", "Size", "em", 1.0),
+        ("note_align", "Alignment", "align", "center"),
+        ("note_italic", "Italic", "bool", True),
+    ]),
+    ("Byline", [
+        ("byline_size", "Size", "em", 1.0),
+        ("byline_align", "Alignment", "align", "center"),
+        ("byline_italic", "Italic", "bool", False),
+    ]),
+    ("Reading time", [
+        ("read_size", "Size", "em", 0.78),
+        ("read_spacing", "Letter spacing", "em", 0.09),
+        ("read_align", "Alignment", "align", "center"),
+        ("read_caps", "Capitals", "bool", True),
+        ("read_clock", "Show the clock", "bool", True),
+    ]),
+    ("Author bio", [
+        ("bio_size", "Size", "em", 0.9),
+        ("bio_align", "Alignment", "align", "center"),
+        ("bio_italic", "Italic", "bool", True),
+    ]),
+    ("Headings", [
+        ("heading_align", "Alignment", "align_none", "none"),
+        ("h4_italic", "Heading 4 italic", "bool", True),
+    ]),
+    ("Verse", [
+        ("verse_indent", "Indent", "em", 2.5),
+        ("verse_hang", "Hanging indent", "em", 1.25),
+    ]),
+    ("Pull quotes", [
+        ("pq_text_size", "Text size", "em", 1.25),
+        ("pq_line", "Line height", "num", 1.4),
+        ("pq_italic", "Italic", "bool", True),
+        ("pq_border", "Rule weight", "px", 1),
+        ("pq_width", "Width when floated", "pct", 38),
+        ("pq_outdent", "Outdent", "in", 0.75),
+        ("pq_float_at", "Float at or above", "px", 900),
+    ]),
+    ("Share icons", [
+        ("share_size", "Icon size", "em", 1.15),
+        ("share_gap", "Spacing", "em", 0.45),
+        ("share_label", "Label above the row", "text", "Share this article"),
+    ]),
+    ("Rules", [
+        ("rule_weight", "Weight", "px", 1),
+        ("rule_opacity", "Opacity", "pct", 25),
+        ("rule_space", "Space above and below", "em", 1.6),
+    ]),
+    ("Footnotes", [
+        ("fn_weight", "Number weight", "weight", 600),
+    ]),
+]
+
+STYLE_DEFAULTS = {key: default
+                  for _group, items in STYLE_SCHEMA
+                  for key, _label, _kind, default in items}
+
+
+def style_values(opts=None):
+    """The look settings, with anything unset falling back to the default."""
+    opts = opts if opts is not None else options()
+    values = dict(STYLE_DEFAULTS)
+    for key, value in (opts.get("style") or {}).items():
+        if key in values:
+            values[key] = value
+    # Heading alignment is also a conversion setting, so keep the two agreed.
+    if opts.get("heading_align"):
+        values["heading_align"] = opts["heading_align"]
+    return values
 
 # Word paragraph styles -> internal roles. Matched loosely: a style called
 # "Verse Block" counts as verse, "Side-Bar" as a pull quote.
@@ -117,87 +221,108 @@ STYLE = {
 # Every rule is scoped to .cbm-article, so none of it can reach the rest of
 # the page. That is what makes a <style> block safe inside a Code Block, and
 # it means floats and media queries work without anything set up site-wide.
-ARTICLE_CSS_TEMPLATE = """<style>
-.cbm-article .cbm-blurb { font-size:1.15em; line-height:1.5; }
-.cbm-article .cbm-note { font-style:italic; }
-.cbm-article .cbm-clock {
-  width:1em; height:1em; vertical-align:-0.13em; margin-right:0.45em;
-}
-.cbm-article .cbm-read {
-  text-align:center; font-size:0.78em;
-  letter-spacing:0.09em; text-transform:uppercase;
-}
-.cbm-article .cbm-rule {
-  border:none; border-top:1px solid currentColor;
-  opacity:0.25; margin:1.6em 0;
-}
-__HEADINGS__
-.cbm-article .cbm-verse { margin-left:2.5em; text-indent:-1.25em; }
-.cbm-article .cbm-bio {
-  text-align:center; font-style:italic; font-size:0.9em;
-}
-.cbm-article [lang="he"] { text-align:right; }
-.cbm-article .cbm-verse[lang="he"] { margin-left:0; margin-right:2.5em; }
-
-.cbm-article .cbm-pullquote {
-  max-width:32em; margin:2em auto; padding:0.8em 0;
-  border-top:1px solid currentColor; border-bottom:1px solid currentColor;
-  text-align:center;
-}
-.cbm-article .cbm-pullquote-text {
-  margin:0 0 0.5em; font-style:italic; font-size:1.25em; line-height:1.4;
-}
-.cbm-article .cbm-share { margin:0; line-height:1; }
-.cbm-article .cbm-share-article {
-  text-align:center; margin:1.2em 0; line-height:1;
-}
-.cbm-article .cbm-share-article::before {
-  content:"Share this article"; display:block; font-size:0.72em;
-  letter-spacing:0.09em; text-transform:uppercase; opacity:0.7;
-  margin-bottom:0.5em;
-}
-.cbm-article .cbm-share a {
-  display:inline-block; margin:0 0.45em; color:currentColor;
-  text-decoration:none; opacity:0.75;
-}
-.cbm-article .cbm-share a:hover { opacity:1; }
-.cbm-article .cbm-share svg { width:1.15em; height:1.15em; vertical-align:middle; }
-
-/* Floated into the margin on a wide screen, alternating down the page.
-   Below this width they stay as centred blocks: a narrow floating box
-   is unreadable. */
-@media (min-width: 900px) {
-  .cbm-article .cbm-pullquote {
-    width:38%; max-width:none; margin:0.4em 0 1em 0; text-align:left;
-  }
-  .cbm-article .cbm-pq-left {
-    float:left; margin-left:-0.75in; margin-right:1.6em;
-  }
-  .cbm-article .cbm-pq-right {
-    float:right; margin-right:-0.75in; margin-left:1.6em;
-  }
-}
-
-/* Keep the footnotes and the bio clear of any floated quote above them. */
-.cbm-article .cbm-footnotes { list-style:none; padding-left:0; }
-.cbm-article .footnote-back { text-decoration:none; font-weight:600; }
-
-/* Keep the footnotes and the bio clear of any floated quote above them. */
-.cbm-article .cbm-rule, .cbm-article .cbm-footnotes,
-.cbm-article section { clear:both; }
-</style>"""
+CSS_BEGIN = "/* ===== BEGIN CBM article styles - generated, do not edit below ===== */"
+CSS_END = "/* ===== END CBM article styles ===== */"
 
 
-def article_css(opts):
-    """The article's own styling. Heading alignment is the one part the
-    site may want to own, so it can be left out entirely."""
-    align = opts.get("heading_align", "center")
-    if align == "none":
+def article_css(opts=None, wrap=True):
+    """
+    The article's styling, built from the look settings. Everything is
+    scoped to .cbm-article so none of it can reach the rest of the page,
+    and colours are never named: currentColor follows the theme.
+    """
+    v = style_values(opts)
+    italic = lambda on: "italic" if on else "normal"
+    if v["heading_align"] == "none":
         headings = "/* heading alignment left to the site */"
     else:
-        headings = (f".cbm-article h2, .cbm-article h3 {{ text-align:{align}; }}\n"
-                    f".cbm-article h4 {{ text-align:{align}; font-style:italic; }}")
-    return ARTICLE_CSS_TEMPLATE.replace("__HEADINGS__", headings)
+        headings = (f".cbm-article h2, .cbm-article h3 {{ text-align:{v['heading_align']}; }}\n"
+                    f".cbm-article h4 {{ text-align:{v['heading_align']}; "
+                    f"font-style:{italic(v['h4_italic'])}; }}")
+    css = f"""{CSS_BEGIN}
+.cbm-article .cbm-blurb {{
+  font-size:{v['blurb_size']}em; line-height:{v['blurb_line']};
+  text-align:{v['blurb_align']}; font-style:{italic(v['blurb_italic'])};
+}}
+.cbm-article .cbm-note {{
+  font-size:{v['note_size']}em; text-align:{v['note_align']};
+  font-style:{italic(v['note_italic'])};
+}}
+.cbm-article .cbm-byline {{
+  font-size:{v['byline_size']}em; text-align:{v['byline_align']};
+  font-style:{italic(v['byline_italic'])}; margin:0 0 0.6em;
+}}
+.cbm-article .cbm-byline a {{ color:inherit; }}
+.cbm-article .cbm-read {{
+  font-size:{v['read_size']}em; letter-spacing:{v['read_spacing']}em;
+  text-align:{v['read_align']};
+  text-transform:{'uppercase' if v['read_caps'] else 'none'};
+}}
+.cbm-article .cbm-clock {{
+  width:1em; height:1em; vertical-align:-0.13em; margin-right:0.45em;
+  display:{'inline-block' if v['read_clock'] else 'none'};
+}}
+.cbm-article .cbm-bio {{
+  font-size:{v['bio_size']}em; text-align:{v['bio_align']};
+  font-style:{italic(v['bio_italic'])};
+}}
+{headings}
+.cbm-article .cbm-verse {{
+  margin-left:{v['verse_indent']}em; text-indent:-{v['verse_hang']}em;
+}}
+.cbm-article [lang="he"] {{ text-align:right; }}
+.cbm-article .cbm-verse[lang="he"] {{ margin-left:0; margin-right:{v['verse_indent']}em; }}
+.cbm-article .cbm-rule {{
+  border:none; border-top:{v['rule_weight']}px solid currentColor;
+  opacity:{float(v['rule_opacity']) / 100:.2f}; margin:{v['rule_space']}em 0;
+}}
+.cbm-article .cbm-pullquote {{
+  max-width:32em; margin:2em auto; padding:0.8em 0;
+  border-top:{v['pq_border']}px solid currentColor;
+  border-bottom:{v['pq_border']}px solid currentColor;
+  text-align:center;
+}}
+.cbm-article .cbm-pullquote-text {{
+  margin:0 0 0.5em; font-size:{v['pq_text_size']}em;
+  line-height:{v['pq_line']}; font-style:{italic(v['pq_italic'])};
+}}
+.cbm-article .cbm-share {{ margin:0; line-height:1; }}
+.cbm-article .cbm-share a {{
+  display:inline-block; margin:0 {v['share_gap']}em; color:currentColor;
+  text-decoration:none; opacity:0.75;
+}}
+.cbm-article .cbm-share a:hover {{ opacity:1; }}
+.cbm-article .cbm-share svg {{
+  width:{v['share_size']}em; height:{v['share_size']}em; vertical-align:middle;
+}}
+.cbm-article .cbm-share-article {{ text-align:center; margin:1.2em 0; line-height:1; }}
+.cbm-article .cbm-share-article::before {{
+  content:"{v['share_label']}"; display:block; font-size:0.72em;
+  letter-spacing:0.09em; text-transform:uppercase; opacity:0.7;
+  margin-bottom:0.5em;
+}}
+.cbm-article .cbm-footnotes {{ list-style:none; padding-left:0; }}
+.cbm-article .footnote-back {{ text-decoration:none; font-weight:{v['fn_weight']}; }}
+
+/* Floated into the margin on a wide screen, alternating down the page.
+   Narrower than this they stay centred blocks: a narrow floating box is
+   unreadable. */
+@media (min-width: {v['pq_float_at']}px) {{
+  .cbm-article .cbm-pullquote {{
+    width:{v['pq_width']}%; max-width:none; margin:0.4em 0 1em 0; text-align:left;
+  }}
+  .cbm-article .cbm-pq-left {{
+    float:left; margin-left:-{v['pq_outdent']}in; margin-right:1.6em;
+  }}
+  .cbm-article .cbm-pq-right {{
+    float:right; margin-right:-{v['pq_outdent']}in; margin-left:1.6em;
+  }}
+}}
+.cbm-article .cbm-rule, .cbm-article .cbm-footnotes,
+.cbm-article section {{ clear:both; }}
+{CSS_END}"""
+    return f"<style>\n{css}\n</style>" if wrap else css
+
 
 
 # Share icons, drawn inline so they take the text colour and need no files.
@@ -500,6 +625,48 @@ def style_headings(soup):
     return counts
 
 
+HEBREW_RUN = re.compile(
+    r"[\u0590-\u05FF\uFB1D-\uFB4F]+"
+    r"(?:[\s\u00a0\u05BE\u05C0\u05C3\u05C6-]+[\u0590-\u05FF\uFB1D-\uFB4F]+)*")
+
+SKIP_INSIDE = {"style", "script", "svg", "code", "pre"}
+
+
+def tag_inline_hebrew(soup):
+    """
+    Wrap Hebrew inside an otherwise English sentence in <span lang="he">.
+
+    Whole Hebrew paragraphs are handled separately. This catches the single
+    word or phrase, which is the common case in these articles and which a
+    paragraph-level rule cannot reach.
+    """
+    wrapped = 0
+    for text in list(soup.find_all(string=True)):
+        parent = text.parent
+        if parent is None or parent.name in SKIP_INSIDE:
+            continue
+        if parent.find_parent(attrs={"lang": "he"}) or parent.get("lang") == "he":
+            continue
+        value = str(text)
+        if not HEB.search(value):
+            continue
+        pieces, last = [], 0
+        for m in HEBREW_RUN.finditer(value):
+            if m.start() > last:
+                pieces.append(NavigableString(value[last:m.start()]))
+            span = soup.new_tag("span")
+            span["lang"] = "he"
+            span.string = m.group(0)
+            pieces.append(span)
+            wrapped += 1
+            last = m.end()
+        if last < len(value):
+            pieces.append(NavigableString(value[last:]))
+        if pieces:
+            text.replace_with(*pieces)
+    return wrapped
+
+
 def mark_languages(soup):
     """A mostly-Hebrew paragraph reads right to left; Greek is tagged only."""
     rtl = 0
@@ -517,6 +684,36 @@ def mark_languages(soup):
 
 
 # ------------------------------------------------------------- pull quotes ---
+
+def build_byline(soup, opts):
+    """
+    "By Chris Burnett, Scott Callaham, Kyle Dunham and Josh Sherrill", each
+    name linked to that author's profile page. The names and their order come
+    from the Word Author style; the link is the name slugified, so the article
+    and the page agree without anything being looked up.
+    """
+    source = soup.find("p", attrs={"data-role": "author"})
+    if source is None:
+        return None, []
+    names = split_authors(plain(source))
+    source.decompose()
+    if not names:
+        return None, []
+    base = opts.get("profile_base") or PROFILE_BASE
+    para = soup.new_tag("p")
+    para["class"] = ["cbm-byline"]
+    para.append(NavigableString("By "))
+    for index, name in enumerate(names):
+        if index:
+            if index == len(names) - 1:
+                para.append(NavigableString(" and " if len(names) == 2 else ", and "))
+            else:
+                para.append(NavigableString(", "))
+        link = soup.new_tag("a", href=base.rstrip("/") + "/" + author_slug(name))
+        link.string = name
+        para.append(link)
+    return para, names
+
 
 def share_row(soup, classes=("cbm-share",)):
     """The three icons, in a paragraph. Used by pull quotes and by the
@@ -606,7 +803,13 @@ def relocate_pull_quotes(soup, quotes):
         if target is None:
             orphans.append(q)
             continue
-        target.insert_after(q.extract())
+        # A quote beside the final paragraph has nothing to wrap it and
+        # would hang below the article, so it goes above that paragraph
+        # instead of after it.
+        if target is paragraphs[-1]:
+            target.insert_before(q.extract())
+        else:
+            target.insert_after(q.extract())
         moved += 1
     return moved, orphans
 
@@ -668,12 +871,21 @@ def assemble(soup, opts):
     settings ask for. The body is always present but may be moved; the
     footnotes always come last, because they are generated from the body.
     """
-    meta = {"title": "", "author": ""}
-    for role in ("title", "author"):
-        el = soup.find("p", attrs={"data-role": role})
-        if el is not None:
-            meta[role] = plain(el)
-            el.decompose()
+    meta = {"title": "", "author": "", "authors": []}
+    author_el = soup.find("p", attrs={"data-role": "author"})
+    if author_el is not None:
+        meta["author"] = plain(author_el)
+    byline, names = (None, [])
+    if opts["include"].get("byline"):
+        byline, names = build_byline(soup, opts)
+    else:
+        if author_el is not None:
+            author_el.decompose()
+    meta["authors"] = names or split_authors(meta["author"])
+    title_el = soup.find("p", attrs={"data-role": "title"})
+    if title_el is not None:
+        meta["title"] = plain(title_el)
+        title_el.decompose()
 
     for role, cls in (("blurb", "cbm-blurb"), ("note", "cbm-note"),
                       ("verse", "cbm-verse")):
@@ -688,6 +900,7 @@ def assemble(soup, opts):
 
     # Collect the movable blocks out of the flow.
     blocks = {}
+    blocks["byline"] = [byline] if byline is not None else []
     blocks["blurb"] = [el.extract() for el in soup.find_all("p", class_="cbm-blurb")]
     blocks["note"] = [el.extract() for el in soup.find_all("p", class_="cbm-note")]
     bios = soup.find_all("p", attrs={"data-role": "author_bio"})
@@ -818,11 +1031,10 @@ def convert(path, decide_orphans=None, opts=None):
     heads = style_headings(soup)
     meta, words, minutes = assemble(soup, opts)
     rtl = mark_languages(soup)
+    inline_he = tag_inline_hebrew(soup)
 
     body = restore_svg_case(tidy_lines(soup.decode()))
-    styling = (article_css(opts) + "\n\n") if opts["style_block"] else ""
-    body = ('<div class="cbm-article">\n' + styling
-            + body.strip() + "\n</div>")
+    body = '<div class="cbm-article">\n' + body.strip() + "\n</div>"
     if soup.find("aside", class_="cbm-pullquote"):
         body = body.rstrip() + "\n" + SHARE_SCRIPT.strip() + "\n"
 
@@ -836,6 +1048,16 @@ def convert(path, decide_orphans=None, opts=None):
         header += f"TITLE\n{meta['title']}\n\n"
     if meta.get("author"):
         header += f"AUTHOR\n{meta['author']}\n\n"
+    known = {author_slug(n) for n in (opts.get("known_authors") or [])}
+    base = (opts.get("profile_base") or PROFILE_BASE).rstrip("/")
+    unknown = [n for n in meta.get("authors", []) if author_slug(n) not in known]
+    if unknown:
+        header += "PROFILE PAGES NEEDED\n"
+        header += ("The byline links to these. Make each page at exactly this\n"
+                   "address, or the link will be dead.\n")
+        for name in unknown:
+            header += f"  {name}\n    {base}/{author_slug(name)}\n"
+        header += "\n"
     if header:
         header += "----- paste everything below this line into the Code Block -----\n\n"
 
@@ -847,9 +1069,25 @@ def convert(path, decide_orphans=None, opts=None):
     log.append(f"{words} words in the body - {minutes} min read")
     if rtl:
         log.append(f"{rtl} Hebrew paragraph(s) set right to left")
+    if inline_he:
+        log.append(f"{inline_he} Hebrew word(s) or phrase(s) tagged within English text")
     if tabs:
         log.append(f"{tabs} outbound link(s) open in a new tab")
     return header + stamp + "\n" + body.strip() + "\n", meta, log
+
+
+def for_checking(html, opts=None):
+    """
+    The same article with the stylesheet attached, so the .html renders on
+    its own. The .txt deliberately carries none: on the site the styling
+    comes from Custom CSS, where one edit reaches every article ever
+    published.
+    """
+    opts = opts or options()
+    marker = '<div class="cbm-article">'
+    if marker not in html:
+        return html
+    return html.replace(marker, marker + "\n" + article_css(opts), 1)
 
 
 def write_outputs(source, html, opts=None):
@@ -869,9 +1107,10 @@ def write_outputs(source, html, opts=None):
     # Always Windows line endings, whichever machine converted the file.
     # Otherwise an article converted on a Mac arrives as one long line in
     # Notepad, and the two tracks produce visibly different files.
-    data = html.replace("\r\n", "\n").replace("\n", "\r\n").encode("utf-8")
-    out_html.write_bytes(data)
-    out_txt.write_bytes(data)
+    def windows_lines(text):
+        return text.replace("\r\n", "\n").replace("\n", "\r\n").encode("utf-8")
+    out_html.write_bytes(windows_lines(for_checking(html, opts)))
+    out_txt.write_bytes(windows_lines(html))
     return out_html, out_txt
 
 
@@ -1331,3 +1570,156 @@ def make_shortcut(target, replace=()):
 
 class ShortcutError(Exception):
     pass
+
+
+def app_folder():
+    """
+    Where this copy of the app lives, which is where a new version should
+    land beside it. For a packaged app that is the folder holding the
+    executable, not the temporary place PyInstaller unpacks into.
+    """
+    import sys
+    if getattr(sys, "frozen", False):
+        here = pathlib.Path(sys.executable).resolve().parent
+    else:
+        here = pathlib.Path(__file__).resolve().parent
+    # A protected location would only fail at the moment of writing.
+    probe = here / ".cbm-write-test"
+    try:
+        probe.write_text("", encoding="utf-8")
+        probe.unlink()
+        return here
+    except OSError:
+        return pathlib.Path.home() / "Downloads" if (
+            pathlib.Path.home() / "Downloads").is_dir() else pathlib.Path.home()
+
+
+# ----------------------------------------------------- article link cards ---
+
+CARD_CSS = """<style>
+.cbm-cards { margin:2em 0; }
+.cbm-cards .cbm-card {
+  display:grid; grid-template-columns:1fr; gap:0.9em; padding:1.6em 0;
+  border-top:1px solid color-mix(in srgb, currentColor 22%, transparent);
+}
+.cbm-cards .cbm-card:last-child {
+  border-bottom:1px solid color-mix(in srgb, currentColor 22%, transparent);
+}
+.cbm-cards img { width:100%; height:auto; display:block; aspect-ratio:3/2; object-fit:cover; }
+.cbm-cards h3 { margin:0 0 0.3em; font-size:1.15em; line-height:1.3; }
+.cbm-cards h3 a { color:inherit; text-decoration:none; }
+.cbm-cards h3 a:hover { text-decoration:underline; }
+.cbm-cards .cbm-card-date {
+  margin:0 0 0.5em; font-size:0.75em; letter-spacing:0.08em;
+  text-transform:uppercase; opacity:0.7;
+}
+.cbm-cards .cbm-card-excerpt { margin:0; opacity:0.85; }
+@media (min-width:46em) {
+  .cbm-cards .cbm-card {
+    grid-template-columns:15em 1fr; gap:1.6em; align-items:start;
+  }
+}
+</style>"""
+
+
+def fetch_article(url, timeout=15):
+    """
+    Read one article's details straight from the site, so nobody has to
+    transcribe a thumbnail address. Returns what it found; anything missing
+    comes back empty for the operator to fill in.
+    """
+    import json
+    import urllib.parse
+    import urllib.request
+    url = url.strip()
+    if not url:
+        raise UpdateError("No address given.")
+    parts = urllib.parse.urlsplit(url if "://" in url else "https://" + url)
+    collection = parts.path.rsplit("/", 1)[0] or "/articles"
+    slug = parts.path.rstrip("/").rsplit("/", 1)[-1]
+    feed = urllib.parse.urlunsplit(
+        (parts.scheme or "https", parts.netloc, collection, "format=json", ""))
+    request = urllib.request.Request(
+        feed, headers={"User-Agent": f"CBM-Article-Converter/{VERSION}"})
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except Exception as exc:                                   # noqa: BLE001
+        raise UpdateError(describe_network_error(exc)) from exc
+    for item in data.get("items") or []:
+        if item.get("urlId") == slug or slug in str(item.get("fullUrl", "")):
+            published = item.get("publishOn")
+            when = ""
+            if published:
+                when = datetime.datetime.fromtimestamp(
+                    published / 1000, datetime.timezone.utc).strftime("%d %B %Y")
+            excerpt = re.sub(r"<[^>]+>", "", item.get("excerpt") or "").strip()
+            return {
+                "title": (item.get("title") or "").strip(),
+                "url": item.get("fullUrl") or parts.path,
+                "date": when,
+                "excerpt": re.sub(r"\s+", " ", excerpt),
+                "image": item.get("assetUrl") or "",
+            }
+    raise UpdateError(
+        "That article was not in the first page of the collection. Paste the "
+        "details by hand, or try an article published more recently.")
+
+
+def article_card(entry, with_style=True):
+    """One card, ready to paste. Repeat the inner div for more articles."""
+    from html import escape
+    title = escape(entry.get("title") or "")
+    url = escape(entry.get("url") or "")
+    date = escape(entry.get("date") or "")
+    excerpt = escape(entry.get("excerpt") or "")
+    image = entry.get("image") or ""
+    if image and "?" not in image:
+        image += "?format=600w"
+    picture = (f'  <a href="{url}"><img src="{escape(image)}" alt="" loading="lazy" /></a>\n'
+               if image else "")
+    card = (f'<div class="cbm-card">\n{picture}'
+            f'  <div>\n'
+            + (f'    <p class="cbm-card-date">{date}</p>\n' if date else "")
+            + f'    <h3><a href="{url}">{title}</a></h3>\n'
+            + (f'    <p class="cbm-card-excerpt">{excerpt}</p>\n' if excerpt else "")
+            + '  </div>\n</div>')
+    if not with_style:
+        return card
+    return '<div class="cbm-cards">\n' + CARD_CSS + "\n\n" + card + "\n</div>"
+
+
+SAMPLE_BODY = """<p class="cbm-byline">By <a href="/profile/chris-burnett">Chris Burnett</a> and <a href="/profile/scott-callaham">Scott Callaham</a></p>
+<p class="cbm-blurb">Russian evangelicalism developed under the influence of Orthodoxy rather than the Reformation.</p>
+<p class="cbm-note">This is the second in a series.</p>
+<p class="cbm-read">__CLOCK__27 min read</p>
+<hr class="cbm-rule" />
+<h2>Baptism and the Gospel</h2>
+<aside class="cbm-pullquote cbm-pq-left"><p class="cbm-pullquote-text">Baptism is not the final step of salvation.</p><p class="cbm-share">__SHARE__</p></aside>
+<p>Second, baptism is not the final step of salvation. If it were, the thief on the cross could have had no hope, and Paul would not have thanked God that he baptised so few at Corinth. The Reformers returned to this point repeatedly, because the alternative makes the sacrament the thing that saves.<sup><a href="#s-fn1" id="s-ref1">1</a></sup></p>
+<p>The quotes alternate down the article: the first sits left, the next right. That is worked out in reading order.</p>
+<h4>A lesser heading</h4>
+<p class="cbm-verse">The LORD is my shepherd;<br/>I shall not want.</p>
+<blockquote><p>We do not become members of Christ\u2019s body by the act of baptism.</p></blockquote>
+<p class="cbm-share cbm-share-article">__SHARE__</p>
+<hr class="cbm-rule" />
+<p class="cbm-bio">Alex is the dean and New Testament Chair at Samara Center for Biblical Training.</p>
+<section class="footnotes"><ol class="cbm-footnotes"><li id="s-fn1"><p><a href="#s-ref1" class="footnote-back">1.</a>&#160;See Jonathan H. Rainbow, <em>Confessor Baptism</em>, 189\u201392.</p></li></ol></section>"""
+
+
+def sample_article(opts=None):
+    """A complete little article, for seeing the styles at work."""
+    share = "".join(
+        f'<a href="#" title="Share">{ICONS[k]}</a>' for k in ("x", "fb", "email"))
+    body = SAMPLE_BODY.replace("__CLOCK__", CLOCK).replace("__SHARE__", share)
+    body = restore_svg_case(body)
+    return ("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">"
+            "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+            "<title>Style preview</title><style>"
+            "body{margin:0;background:#fbfbf9;color:#1b1b1a;"
+            "font-family:Georgia,serif;line-height:1.65;}"
+            ".page{max-width:44em;margin:3em auto;padding:0 1.5em;}"
+            "@media(prefers-color-scheme:dark){body{background:#17171a;color:#eceae4}}"
+            "</style></head><body><div class=\"page\">"
+            + article_css(opts) + '<div class="cbm-article">' + body
+            + "</div></div></body></html>")

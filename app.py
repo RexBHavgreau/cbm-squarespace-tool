@@ -1,6 +1,6 @@
 """
 CBM Article Converter
-Version 1.3.0
+Version 1.4.0
 
 A small window: choose an article, convert it, read what happened.
 Works on Windows and macOS. Nothing to install beyond the app itself.
@@ -31,6 +31,101 @@ class GuideWindow(tk.Toplevel):
         box.configure(state="disabled")
         tk.Button(self, text="Close", width=10, command=self.destroy).pack(pady=10)
         self.geometry(f"+{parent.winfo_rootx() + 50}+{parent.winfo_rooty() + 40}")
+
+
+class CopyWindow(tk.Toplevel):
+    """Show generated text with a button that puts it on the clipboard."""
+
+    def __init__(self, parent, title, text):
+        super().__init__(parent)
+        self.title(title)
+        self.minsize(680, 520)
+        self.transient(parent)
+        self.text = text
+        box = scrolledtext.ScrolledText(self, wrap="none", font="TkFixedFont",
+                                        padx=12, pady=10)
+        box.pack(fill="both", expand=True)
+        box.insert("1.0", text)
+        box.configure(state="disabled")
+        row = tk.Frame(self)
+        row.pack(fill="x", pady=10)
+        self.copied = tk.Label(row, text="", fg="#2a7")
+        self.copied.pack(side="left", padx=18)
+        tk.Button(row, text="Close", width=10, command=self.destroy).pack(side="right", padx=18)
+        tk.Button(row, text="Copy all", width=12, command=self.copy).pack(side="right")
+        self.geometry(f"+{parent.winfo_rootx() + 40}+{parent.winfo_rooty() + 30}")
+
+    def copy(self):
+        self.clipboard_clear()
+        self.clipboard_append(self.text)
+        self.copied.configure(text="Copied.")
+
+
+class CardBuilder(tk.Toplevel):
+    """
+    Build the HTML for one article link, for a profile page. The address is
+    enough: the rest is read from the site, and can be edited before the
+    card is made.
+    """
+
+    FIELDS = [("title", "Title"), ("date", "Date"), ("excerpt", "Excerpt"),
+              ("image", "Image address")]
+
+    def __init__(self, parent, say):
+        super().__init__(parent)
+        self.say = say
+        self.title("Build an article card")
+        self.resizable(False, False)
+        self.transient(parent)
+        tk.Label(self, text="Article address", anchor="w",
+                 font=("Helvetica", 11, "bold")).pack(fill="x", padx=18, pady=(16, 2))
+        self.url = tk.StringVar()
+        row = tk.Frame(self)
+        row.pack(fill="x", padx=18)
+        tk.Entry(row, textvariable=self.url, width=52).pack(side="left")
+        tk.Button(row, text="Look up", command=self.lookup).pack(side="left", padx=8)
+        tk.Label(self, anchor="w", fg="#666", justify="left", wraplength=470,
+                 text=("Looking it up fills in the rest. Anything can be edited "
+                       "before the card is built, and a blank field is simply "
+                       "left out.")).pack(fill="x", padx=18, pady=(4, 10))
+        self.entries = {}
+        for key, label in self.FIELDS:
+            line = tk.Frame(self)
+            line.pack(fill="x", padx=18, pady=2)
+            tk.Label(line, text=label, width=14, anchor="w").pack(side="left")
+            var = tk.StringVar()
+            tk.Entry(line, textvariable=var, width=48).pack(side="left")
+            self.entries[key] = var
+        self.include_style = tk.BooleanVar(value=True)
+        tk.Checkbutton(self, anchor="w", variable=self.include_style,
+                       text="Include the styling (leave off when adding to an "
+                            "existing list)").pack(fill="x", padx=18, pady=(8, 0))
+        foot = tk.Frame(self)
+        foot.pack(fill="x", padx=18, pady=14)
+        tk.Button(foot, text="Close", width=9, command=self.destroy).pack(side="right")
+        tk.Button(foot, text="Build", width=9, command=self.build).pack(side="right", padx=8)
+        self.geometry(f"+{parent.winfo_rootx() + 50}+{parent.winfo_rooty() + 60}")
+
+    def lookup(self):
+        try:
+            found = core.fetch_article(self.url.get())
+        except core.UpdateError as exc:
+            messagebox.showwarning("Could not look it up", str(exc))
+            return
+        for key, var in self.entries.items():
+            var.set(found.get(key, ""))
+        self.url.set(found.get("url", self.url.get()))
+
+    def build(self):
+        entry = {key: var.get().strip() for key, var in self.entries.items()}
+        entry["url"] = self.url.get().strip()
+        if not entry["url"] or not entry["title"]:
+            messagebox.showwarning(
+                "Not enough to build with",
+                "An address and a title are the least it needs.")
+            return
+        CopyWindow(self, "Article card",
+                   core.article_card(entry, with_style=self.include_style.get()))
 
 
 class TemplateChoice(tk.Toplevel):
@@ -159,16 +254,10 @@ class Preferences(tk.Toplevel):
         self.include = dict(opts["include"])
         self.refresh()
 
-        # --- headings ---
-        tk.Label(self, text="Headings", anchor="w",
-                 font=("Helvetica", 12, "bold")).pack(fill="x", pady=(18, 2), **pad)
-        self.align = tk.StringVar(value=opts["heading_align"])
-        align_row = tk.Frame(self)
-        align_row.pack(fill="x", **pad)
-        for value, label in (("left", "Left"), ("center", "Centred"),
-                             ("right", "Right"), ("none", "Leave to the site")):
-            tk.Radiobutton(align_row, text=label, value=value, variable=self.align,
-                           command=self.sync).pack(side="left", padx=(0, 10))
+        tk.Label(self, anchor="w", justify="left", fg="#666", wraplength=430,
+                 text=("How an article LOOKS \u2014 headings, blurb, pull quotes and "
+                       "the rest \u2014 is set under Designer \u203a Article styles.")
+                 ).pack(fill="x", pady=(16, 0), **pad)
 
         # --- reading time ---
         tk.Label(self, text="Reading time", anchor="w",
@@ -180,20 +269,6 @@ class Preferences(tk.Toplevel):
                    textvariable=self.wpm).pack(side="left")
         tk.Label(wpm_row, fg="#666",
                  text="  words a minute. Lower for a heavier read.").pack(side="left")
-
-        # --- styling ---
-        tk.Label(self, text="Styling", anchor="w",
-                 font=("Helvetica", 12, "bold")).pack(fill="x", pady=(18, 2), **pad)
-        self.style_block = tk.BooleanVar(value=opts["style_block"])
-        tk.Checkbutton(self, anchor="w", variable=self.style_block,
-                       command=self.sync,
-                       text="Include the article's own styling"
-                       ).pack(fill="x", **pad)
-        self.style_note = tk.Label(self, anchor="w", justify="left", fg="#666",
-                                   wraplength=430,
-                                   text=("Without it the article inherits everything from the "
-                                         "site, and heading alignment is left to the site too."))
-        self.style_note.pack(fill="x", **pad)
 
         # --- where files go ---
         tk.Label(self, text="Where finished files go", anchor="w",
@@ -279,10 +354,6 @@ class Preferences(tk.Toplevel):
 
     def sync(self):
         """Keep the dialog honest about what depends on what."""
-        styled = self.style_block.get()
-        if not styled:
-            self.align.set("none")
-        self.style_note.configure(fg="#666" if styled else "#333")
         state = "normal" if self.output.get() == "folder" else "disabled"
         self.folder_label.configure(fg="#333" if state == "normal" else "#999")
 
@@ -293,9 +364,7 @@ class Preferences(tk.Toplevel):
             return
         self.order = list(core.DEFAULTS["order"])
         self.include = dict(core.DEFAULTS["include"])
-        self.align.set(core.DEFAULTS["heading_align"])
         self.wpm.set(str(core.DEFAULTS["words_per_minute"]))
-        self.style_block.set(core.DEFAULTS["style_block"])
         self.output.set(core.DEFAULTS["output"])
         self.folder.set(core.DEFAULTS["output_folder"])
         self.refresh()
@@ -310,12 +379,140 @@ class Preferences(tk.Toplevel):
         data.update({
             "order": self.order,
             "include": self.include,
-            "heading_align": self.align.get(),
             "words_per_minute": max(80, min(400, words)),
-            "style_block": bool(self.style_block.get()),
             "output": self.output.get(),
             "output_folder": self.folder.get(),
         })
+        core.save_settings(data)
+        self.destroy()
+        self.on_save()
+
+
+class StylePanel(tk.Toplevel):
+    """
+    Every style an article uses, laid out by element. The controls are built
+    from core.STYLE_SCHEMA, so adding one there is enough.
+    """
+
+    def __init__(self, parent, on_save):
+        super().__init__(parent)
+        self.on_save = on_save
+        self.title("Article styles")
+        self.minsize(560, 620)
+        self.transient(parent)
+        self.values = core.style_values()
+        self.vars = {}
+
+        top = tk.Frame(self)
+        top.pack(fill="x", padx=18, pady=(16, 6))
+        tk.Label(top, text="Article styles", font=("Helvetica", 13, "bold"),
+                 anchor="w").pack(fill="x")
+        tk.Label(top, anchor="w", justify="left", fg="#666", wraplength=500,
+                 text=("These produce the stylesheet that goes into Squarespace's "
+                       "Custom CSS. Once it is there, a change here and a fresh "
+                       "paste restyles every article on the site, including ones "
+                       "published long ago.")).pack(fill="x")
+
+        # a scrolling area, since there are a lot of controls
+        canvas = tk.Canvas(self, highlightthickness=0, height=420)
+        bar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
+        inner = tk.Frame(canvas)
+        inner.bind("<Configure>",
+                   lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=inner, anchor="nw")
+        canvas.configure(yscrollcommand=bar.set)
+        canvas.pack(side="left", fill="both", expand=True, padx=(18, 0), pady=8)
+        bar.pack(side="right", fill="y", pady=8)
+
+        for group, items in core.STYLE_SCHEMA:
+            tk.Label(inner, text=group, font=("Helvetica", 11, "bold"),
+                     anchor="w").pack(fill="x", pady=(12, 2))
+            for key, label, kind, _default in items:
+                self.add_control(inner, key, label, kind)
+
+        foot = tk.Frame(self)
+        foot.pack(fill="x", padx=18, pady=14)
+        tk.Button(foot, text="Reset to defaults", width=16,
+                  command=self.reset).pack(side="left")
+        tk.Button(foot, text="Preview in browser", width=17,
+                  command=self.preview).pack(side="left", padx=8)
+        tk.Button(foot, text="Close", width=9, command=self.destroy).pack(side="right")
+        tk.Button(foot, text="Save", width=9,
+                  command=self.save).pack(side="right", padx=8)
+
+    def add_control(self, parent, key, label, kind):
+        row = tk.Frame(parent)
+        row.pack(fill="x", pady=1)
+        value = self.values.get(key)
+        if kind == "bool":
+            var = tk.BooleanVar(value=bool(value))
+            tk.Checkbutton(row, text=label, variable=var, anchor="w").pack(
+                side="left", fill="x", expand=True)
+        elif kind in ("align", "align_none"):
+            var = tk.StringVar(value=str(value))
+            tk.Label(row, text=label, width=22, anchor="w").pack(side="left")
+            choices = [("left", "Left"), ("center", "Centred"), ("right", "Right")]
+            if kind == "align_none":
+                choices.append(("none", "Site decides"))
+            for val, text in choices:
+                tk.Radiobutton(row, text=text, value=val, variable=var).pack(side="left")
+        elif kind == "text":
+            var = tk.StringVar(value=str(value))
+            tk.Label(row, text=label, width=22, anchor="w").pack(side="left")
+            tk.Entry(row, textvariable=var, width=26).pack(side="left")
+        else:
+            var = tk.StringVar(value=str(value))
+            tk.Label(row, text=label, width=22, anchor="w").pack(side="left")
+            step = {"em": 0.05, "num": 0.1, "pct": 1, "px": 1, "in": 0.05,
+                    "weight": 100}.get(kind, 1)
+            tk.Spinbox(row, from_=0, to=2000, increment=step, width=8,
+                       textvariable=var).pack(side="left")
+            tk.Label(row, text={"em": "em", "pct": "%", "px": "px", "in": "in",
+                                "num": "", "weight": ""}.get(kind, ""),
+                     fg="#888").pack(side="left", padx=4)
+        self.vars[key] = (var, kind)
+
+    def collect(self):
+        out = {}
+        for key, (var, kind) in self.vars.items():
+            raw = var.get()
+            if kind == "bool":
+                out[key] = bool(raw)
+            elif kind in ("align", "align_none", "text"):
+                out[key] = str(raw)
+            else:
+                try:
+                    number = float(raw)
+                except (TypeError, ValueError):
+                    number = float(core.STYLE_DEFAULTS[key])
+                out[key] = int(number) if number == int(number) else number
+        return out
+
+    def reset(self):
+        if not messagebox.askyesno("Reset styles",
+                                   "Put every style back to the way it comes "
+                                   "out of the box?"):
+            return
+        for key, (var, kind) in self.vars.items():
+            var.set(core.STYLE_DEFAULTS[key])
+
+    def preview(self):
+        """Write a sample article with these settings and open it."""
+        import tempfile
+        import webbrowser
+        opts = core.options()
+        opts["style"] = self.collect()
+        opts["heading_align"] = opts["style"].get("heading_align", "none")
+        page = core.sample_article(opts)
+        target = pathlib.Path(tempfile.gettempdir()) / "cbm-style-preview.html"
+        target.write_text(page, encoding="utf-8")
+        webbrowser.open(target.as_uri())
+
+    def save(self):
+        data = core.load_settings()
+        style = self.collect()
+        data["style"] = style
+        data["heading_align"] = style.get("heading_align", "none")
         core.save_settings(data)
         self.destroy()
         self.on_save()
@@ -344,15 +541,15 @@ class App:
 
         row = tk.Frame(root)
         row.pack(fill="x", padx=16, pady=10)
-        self.choose_btn = tk.Button(row, text="Choose article…", width=17,
+        self.choose_btn = tk.Button(row, text="Choose Article…", width=17,
                                     command=self.choose)
         self.choose_btn.pack(side="left")
         self.convert_btn = tk.Button(row, text="Convert", width=12,
                                      state="disabled", command=self.start)
         self.convert_btn.pack(side="left", padx=8)
-        self.styles_btn = tk.Button(row, text="Add house styles…", width=18,
+        self.styles_btn = tk.Button(row, text="Apply Styles to DOCX", width=20,
                                     command=self.add_styles)
-        self.styles_btn.pack(side="right")
+        self.styles_btn.pack(side="left", padx=(0, 8))
 
         self.chosen = tk.Label(root, text="Nothing chosen yet", anchor="w", fg="#555")
         self.chosen.pack(fill="x", padx=16)
@@ -409,6 +606,14 @@ class App:
                           command=self.reset_defaults)
         bar.add_cascade(label="Preferences", menu=prefs)
 
+        designer = tk.Menu(bar, tearoff=0)
+        designer.add_command(label="Article styles\u2026", command=self.open_styles)
+        designer.add_command(label="Copy the article stylesheet\u2026",
+                             command=self.show_stylesheet)
+        designer.add_separator()
+        designer.add_command(label="Build an article card\u2026", command=self.build_card)
+        bar.add_cascade(label="Designer", menu=designer)
+
         helpmenu = tk.Menu(bar, tearoff=0)
         for label, filename in core.DOCUMENTS:
             helpmenu.add_command(label=label,
@@ -450,6 +655,28 @@ class App:
         self.auto_check.set(self.opts.get("check_at_startup", True))
         self.say("")
         self.say("Everything reset to defaults.")
+
+    def open_styles(self):
+        StylePanel(self.root, self.styles_saved)
+
+    def styles_saved(self):
+        self.opts = core.options()
+        self.say("")
+        self.say("Article styles saved. Copy the stylesheet into Custom CSS "
+                 "for the change to reach the site.")
+
+    def show_stylesheet(self):
+        """The stylesheet to paste into Squarespace's Custom CSS."""
+        css = core.article_css(self.opts, wrap=False)
+        note = (f"Paste this into Design \u203a Custom CSS on the site.\n"
+                f"Generated by version {core.VERSION}.\n"
+                f"Anything you write outside the BEGIN and END lines is yours "
+                f"and survives a fresh paste.\n\n")
+        CopyWindow(self.root, "Article stylesheet", note + css)
+
+    def build_card(self):
+        """A link card for an article, to paste onto a profile page."""
+        CardBuilder(self.root, self.say)
 
     def open_guide(self, filename, label):
         path = core.document_path(filename)
@@ -532,33 +759,51 @@ class App:
         return self.pick_template()
 
     def add_styles(self):
-        manuscript = filedialog.askopenfilename(
-            title="Choose the author's Word document",
-            filetypes=[("Word documents", "*.docx")])
-        if not manuscript:
+        """Put the house styles into whichever Word documents are chosen."""
+        if not self.paths:
+            messagebox.showinfo(
+                "Nothing chosen",
+                "Choose an article first. Styles are applied to the Word "
+                "documents among whatever is selected.")
             return
-        template = self.resolve_template()
+        word = [p for p in self.paths if p.suffix.lower() == ".docx"]
+        other = [p for p in self.paths if p.suffix.lower() != ".docx"]
+        if not word:
+            messagebox.showwarning(
+                "No Word documents",
+                "Styles can only be applied to .docx files. Nothing chosen is "
+                "one, so nothing has been done.")
+            return
+        if other:
+            messagebox.showwarning(
+                "Skipping some files",
+                f"{len(other)} of the chosen files are not Word documents and "
+                "will be skipped:\n\n"
+                + "\n".join("  " + p.name for p in other[:6])
+                + ("\n  …" if len(other) > 6 else ""))
+        template = self.resolve_template()      # asked once, for the batch
         if not template:
             self.say("No template chosen; nothing done.")
             return
-        self.say("")
-        self.say(f"--- {pathlib.Path(manuscript).name}")
-        self.say(f"    template: {template.name}")
-        try:
-            out, added, already = core.add_house_styles(manuscript, template)
-        except Exception as exc:                          # noqa: BLE001
-            self.say(f"    FAILED  {exc}")
-            return
-        for name in already:
-            self.say(f"    already there: {name}")
-        if not out:
-            self.say("    nothing to add; the document already has them")
-            return
-        for name in added:
-            self.say(f"    added: {name}")
-        self.say(f"    wrote {pathlib.Path(out).name}")
-        self.say("    Only the style list changed. The text, comments and")
-        self.say("    tracked changes are exactly as the author sent them.")
+        for path in word:
+            self.say("")
+            self.say(f"--- {path.name}")
+            try:
+                out, added, already = core.add_house_styles(path, template)
+            except Exception as exc:                      # noqa: BLE001
+                self.say(f"    FAILED  {exc}")
+                continue
+            for name in already:
+                self.say(f"    already there: {name}")
+            if not out:
+                self.say("    every house style is already in this document;")
+                self.say("    no copy was made")
+                continue
+            for name in added:
+                self.say(f"    added: {name}")
+            self.say(f"    wrote {pathlib.Path(out).name}")
+            self.say("    Open THAT file in Word and apply the styles. When the")
+            self.say("    editing is done, choose it here and Convert.")
 
     # ------------------------------------------------------------- updates --
     def check_updates_quietly(self):
@@ -595,8 +840,9 @@ class App:
                    + (f"Download {newer['asset_name']}{size_text}?\n\n"
                       if newer.get("asset_url") else
                       "That release has no download for this kind of machine.\n\n")
-                   + "The new version is saved alongside this one rather than "
-                     "replacing it, so you can go back if you need to.")
+                   + "It is saved alongside this one rather than replacing it, "
+                     "so you can go back if you need to. The folder this app is "
+                     "in is offered first; anywhere else is fine.")
         if not newer.get("asset_url"):
             messagebox.showinfo("A newer version exists", message)
             self.say(f"Version {newer['version']} is available: {newer['page']}")
@@ -604,7 +850,9 @@ class App:
         if not messagebox.askyesno("A newer version is available", message):
             self.say(f"Update declined. It remains at {newer['page']}")
             return
-        folder = filedialog.askdirectory(title="Where should it be saved?")
+        folder = filedialog.askdirectory(
+            title="Where should it be saved?",
+            initialdir=str(core.app_folder()))
         if not folder:
             return
         self.say("")

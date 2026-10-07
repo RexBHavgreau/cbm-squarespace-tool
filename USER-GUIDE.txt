@@ -1,6 +1,6 @@
 ===============================================================
  CBM ARTICLE CONVERTER - USER GUIDE
- Version 1.3.0
+ Version 1.4.0
 ===============================================================
 
 This turns a finished article into HTML that can be pasted
@@ -131,15 +131,22 @@ each quote back beside the paragraph it quotes.
 Choose one or more articles, then press Convert.
 
 Two files appear beside the original, named with the date and
-time of the run:
+time of the run. THEY ARE NOT THE SAME.
 
   20261004_1032_Gurtaev Water Baptism.html
   20261004_1032_Gurtaev Water Baptism.txt
 
-They hold exactly the same thing.
-
   Open the .html in a browser to CHECK the article.
   Open the .txt in Notepad to COPY the code.
+
+The .html carries the styling with it, so it looks right on its
+own when you check it. The .txt does not: on the site the
+styling lives in Squarespace's Custom CSS, where one edit
+reaches every article ever published.
+
+ALWAYS COPY FROM THE .txt. Pasting from the .html would put a
+copy of the stylesheet into that one article, and it would then
+ignore any later change made site-wide.
 
 Check the .html first. Click a raised footnote number: it
 should jump to the note. Click the note's number: it should
@@ -324,7 +331,7 @@ Share links on pull quotes do nothing
 
 Every finished file begins with a hidden line:
 
-  <!-- CBM Article Tools, Version 1.3.0 - converted 2026-10-04
+  <!-- CBM Article Tools, Version 1.4.0 - converted 2026-10-04
        10:32 - from: Gurtaev_Water_Baptism.html -->
 
 It never shows on the page. It survives into the Code Block,
@@ -381,6 +388,72 @@ of the app you want, wherever it is kept.
 
 Only shortcuts named after this app are removed. Nothing else
 on the Desktop is touched.
+
+
+---------------------------------------------------------------
+ THE BYLINE AND AUTHOR PROFILES
+---------------------------------------------------------------
+
+Apply the Author style to the line naming the authors. Several
+names can be separated by commas, "and", or an ampersand; the
+tool keeps the order you wrote them in and punctuates the
+byline itself.
+
+Each name becomes a link to that author's profile page, built
+from the name:
+
+  Scott Callaham   ->   /profile/scott-callaham
+
+The address is worked out from the name every time, so the
+article and the page always agree. Where a profile page does
+not exist yet, the tool says so above the code, giving the
+exact address to create:
+
+  PROFILE PAGES NEEDED
+    Kyle Dunham
+      /profile/kyle-dunham
+
+Make the page at exactly that address or the link will be dead.
+
+The AUTHOR line above the code is still there, because the
+post's own author field should still be set in Squarespace even
+though the byline no longer comes from it.
+
+
+---------------------------------------------------------------
+ THE DESIGNER MENU
+---------------------------------------------------------------
+
+For whoever builds and maintains the web pages.
+
+ARTICLE STYLES
+
+  Every style an article uses, laid out by element: the blurb,
+  byline, article note, reading time, bio, headings, verse,
+  pull quotes, share icons, rules and footnotes.
+
+  "Preview in browser" writes a small sample article with the
+  current settings and opens it, so nothing has to be imagined.
+
+COPY THE ARTICLE STYLESHEET
+
+  Produces the stylesheet to paste into Squarespace's Custom
+  CSS. Paste it once; from then on a change in Article Styles
+  and a fresh paste restyles EVERY article on the site,
+  including ones published long ago.
+
+  The block is marked BEGIN and END. Anything written outside
+  those lines is yours and survives a fresh paste.
+
+BUILD AN ARTICLE CARD
+
+  Paste an article's address and it reads the title, date,
+  excerpt and picture from the site, then builds the HTML for
+  a link card to put on an author's profile page. Every field
+  can be edited first, and a blank one is left out.
+
+  Turn the styling off when adding a card to a list that
+  already has it.
 
 
 ---------------------------------------------------------------

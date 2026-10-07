@@ -1,7 +1,7 @@
 ===============================================================
  CBM ARTICLE CONVERTER - WHAT THE HTML LOOKS LIKE
  A reference for whoever builds and maintains the pages
- Version 1.3.0
+ Version 1.4.0
 ===============================================================
 
 Every article the converter produces follows the same shape.
@@ -34,7 +34,7 @@ Two principles explain most of the decisions here:
 
   ----- paste everything below this line into the Code Block -----
 
-  <!-- CBM Article Tools, Version 1.3.0 - converted ... -->
+  <!-- CBM Article Tools, Version 1.4.0 - converted ... -->
 
   <p style="font-size:1.15em; ...">            the blurb
   <p style="font-style:italic;">               article note
