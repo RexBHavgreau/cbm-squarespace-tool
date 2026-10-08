@@ -1,6 +1,6 @@
 ===============================================================
  CBM ARTICLE CONVERTER - USER GUIDE
- Version 1.5.0
+ Version 1.5.1
 ===============================================================
 
 This turns a finished article into HTML that can be pasted
@@ -331,7 +331,7 @@ Share links on pull quotes do nothing
 
 Every finished file begins with a hidden line:
 
-  <!-- CBM Article Tools, Version 1.5.0 - converted 2026-10-04
+  <!-- CBM Article Tools, Version 1.5.1 - converted 2026-10-04
        10:32 - from: Gurtaev_Water_Baptism.html -->
 
 It never shows on the page. It survives into the Code Block,

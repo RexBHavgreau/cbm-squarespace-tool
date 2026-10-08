@@ -52,6 +52,17 @@ number.
 
 ## Releases
 
+### 1.5.1
+
+Fixes the share links. The script that fills them in only looked inside
+pull quotes, so the article-wide row added in 1.4.0 kept its placeholder
+and every one of its links pointed back at the article. An article with
+that row and no pull quotes got no script at all. Both are fixed, and
+the article-wide row shares the article's own title.
+
+**Any article published with the article-wide share row needs
+reconverting and re-pasting.**
+
 ### 1.5.0
 
 Photographs. A picture in a Word document is no longer written into the

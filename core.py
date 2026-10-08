@@ -6,7 +6,7 @@ import re, math, copy, datetime, pathlib, unicodedata, zipfile
 import mammoth
 from bs4 import BeautifulSoup, Tag, NavigableString
 
-VERSION = "1.5.0"
+VERSION = "1.5.1"
 
 # Kept so anything that still asks for a build number gets something sensible.
 BUILD = VERSION
@@ -389,15 +389,20 @@ CLOCK = ('<svg width="1em" height="1em" viewBox="0 0 16 16" fill="none" stroke="
 SHARE_SCRIPT = """
 <script>
 (function () {
-  var url = encodeURIComponent(window.location.href);
-  var boxes = document.querySelectorAll('.cbm-pullquote');
-  for (var i = 0; i < boxes.length; i++) {
-    var q = boxes[i].querySelector('.cbm-pullquote-text');
-    if (!q) continue;
-    var text = encodeURIComponent('\\u201c' + q.textContent.trim() + '\\u201d');
-    var x = boxes[i].querySelector('.cbm-share-x');
-    var f = boxes[i].querySelector('.cbm-share-fb');
-    var e = boxes[i].querySelector('.cbm-share-email');
+  var here = window.location.href.split('#')[0];
+  var url = encodeURIComponent(here);
+  var rows = document.querySelectorAll('.cbm-share');
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    // A row inside a pull quote shares that sentence; the row that belongs
+    // to the whole article shares the article's own title.
+    var box = row.closest ? row.closest('.cbm-pullquote') : null;
+    var quote = box ? box.querySelector('.cbm-pullquote-text') : null;
+    var saying = quote ? quote.textContent.trim() : (document.title || '').trim();
+    var text = encodeURIComponent(saying ? '\u201c' + saying + '\u201d' : '');
+    var x = row.querySelector('.cbm-share-x');
+    var f = row.querySelector('.cbm-share-fb');
+    var e = row.querySelector('.cbm-share-email');
     if (x) x.href = 'https://twitter.com/intent/tweet?text=' + text + '&url=' + url;
     if (f) f.href = 'https://www.facebook.com/sharer/sharer.php?u=' + url;
     if (e) e.href = 'mailto:?subject=' + encodeURIComponent(document.title) +
@@ -1209,7 +1214,7 @@ def convert(path, decide_orphans=None, opts=None):
 
     body = restore_svg_case(tidy_lines(soup.decode()))
     body = '<div class="cbm-article">\n' + body.strip() + "\n</div>"
-    if soup.find("aside", class_="cbm-pullquote"):
+    if soup.find(class_="cbm-share"):
         body = body.rstrip() + "\n" + SHARE_SCRIPT.strip() + "\n"
 
     changed = non_default(opts)
