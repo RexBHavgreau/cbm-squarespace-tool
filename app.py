@@ -1,6 +1,6 @@
 """
 CBM Article Converter
-Version 1.4.0
+Version 1.5.0
 
 A small window: choose an article, convert it, read what happened.
 Works on Windows and macOS. Nothing to install beyond the app itself.
@@ -59,6 +59,59 @@ class CopyWindow(tk.Toplevel):
         self.clipboard_clear()
         self.clipboard_append(self.text)
         self.copied.configure(text="Copied.")
+
+
+class PicturePlacer(tk.Toplevel):
+    """
+    Paste the address of each uploaded picture and put them into the article.
+
+    An address cannot be known before the picture is uploaded, so this is a
+    second pass rather than something the conversion can do.
+    """
+
+    def __init__(self, parent, path, text, waiting, say):
+        super().__init__(parent)
+        self.path, self.text, self.say = path, text, say
+        self.title("Place the pictures")
+        self.transient(parent)
+        tk.Label(self, text=path.name, font=("Helvetica", 11, "bold"),
+                 anchor="w").pack(fill="x", padx=18, pady=(16, 2))
+        tk.Label(self, anchor="w", justify="left", fg="#666", wraplength=560,
+                 text=("Upload each picture to the site, copy its address, and "
+                       "paste it here. Leave one blank to keep its marker for "
+                       "now.")).pack(fill="x", padx=18, pady=(0, 10))
+        self.fields = {}
+        for item in waiting:
+            line = tk.Frame(self)
+            line.pack(fill="x", padx=18, pady=3)
+            label = item["file"] + ("" if item["alt"] else "   (no alt text)")
+            tk.Label(line, text=label, width=28, anchor="w",
+                     fg="#333" if item["alt"] else "#A8442A").pack(side="left")
+            var = tk.StringVar()
+            tk.Entry(line, textvariable=var, width=52).pack(side="left")
+            self.fields[item["file"]] = var
+        foot = tk.Frame(self)
+        foot.pack(fill="x", padx=18, pady=14)
+        tk.Button(foot, text="Close", width=9, command=self.destroy).pack(side="right")
+        tk.Button(foot, text="Place them", width=12,
+                  command=self.place).pack(side="right", padx=8)
+        self.geometry(f"+{parent.winfo_rootx() + 40}+{parent.winfo_rooty() + 50}")
+
+    def place(self):
+        addresses = {name: var.get() for name, var in self.fields.items()}
+        if not any(a.strip() for a in addresses.values()):
+            messagebox.showwarning("Nothing to place",
+                                   "No addresses have been pasted in.")
+            return
+        done, placed, left = core.place_pictures(self.text, addresses)
+        target = self.path.with_name(self.path.stem + " (with pictures)"
+                                     + self.path.suffix)
+        target.write_bytes(done.replace("\r\n", "\n")
+                           .replace("\n", "\r\n").encode("utf-8"))
+        self.say("")
+        self.say(f"Placed {placed} picture(s); {left} still waiting.")
+        self.say(f"    wrote {target.name}")
+        self.destroy()
 
 
 class CardBuilder(tk.Toplevel):
@@ -526,6 +579,7 @@ class App:
         self.paths = [pathlib.Path(p) for p in opening]
         self.template = core.remembered_template()
         self.opts = core.options()
+        self.last_output = None
         root.title(f"CBM Article Converter  -  {core.VERSION}")
         root.minsize(680, 520)
 
@@ -611,6 +665,7 @@ class App:
         designer.add_command(label="Copy the article stylesheet\u2026",
                              command=self.show_stylesheet)
         designer.add_separator()
+        designer.add_command(label="Place the pictures\u2026", command=self.place_pictures)
         designer.add_command(label="Build an article card\u2026", command=self.build_card)
         bar.add_cascade(label="Designer", menu=designer)
 
@@ -673,6 +728,26 @@ class App:
                 f"Anything you write outside the BEGIN and END lines is yours "
                 f"and survives a fresh paste.\n\n")
         CopyWindow(self.root, "Article stylesheet", note + css)
+
+    def place_pictures(self):
+        """Put uploaded pictures into a converted article."""
+        start = str(self.last_output) if self.last_output else ""
+        chosen = filedialog.askopenfilename(
+            title="Choose the converted article (.txt)",
+            initialfile=pathlib.Path(start).name if start else "",
+            initialdir=str(pathlib.Path(start).parent) if start else "",
+            filetypes=[("Converted article", "*.txt *.html"), ("All files", "*.*")])
+        if not chosen:
+            return
+        text = pathlib.Path(chosen).read_text(encoding="utf-8", errors="replace")
+        waiting = core.pictures_awaiting(text)
+        if not waiting:
+            messagebox.showinfo(
+                "Nothing waiting",
+                "That article has no picture markers in it. Either it has no "
+                "pictures, or they have already been placed.")
+            return
+        PicturePlacer(self.root, pathlib.Path(chosen), text, waiting, self.say)
 
     def build_card(self):
         """A link card for an article, to paste onto a profile page."""
@@ -969,9 +1044,16 @@ class App:
                     self.say("    nothing written")
                     failed += 1
                     continue
-                out_html, out_txt = core.write_outputs(path, html, self.opts)
+                out_html, out_txt, pictures = core.write_outputs(
+                    path, html, self.opts, meta.get("pictures") or [])
                 self.say(f"    wrote {out_html.name}")
                 self.say(f"    wrote {out_txt.name}")
+                if pictures:
+                    self.say(f"    saved {len(pictures)} picture(s) to "
+                             f"{pictures[0].parent.name}")
+                    self.say("    Upload those, then use Designer \u203a Place "
+                             "the pictures to put them into the article.")
+                    self.last_output = out_txt
                 if out_html.parent != path.parent:
                     self.say(f"    in {out_html.parent}")
                 done += 1

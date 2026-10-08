@@ -1,7 +1,7 @@
 ===============================================================
  CBM ARTICLE CONVERTER - WHAT THE HTML LOOKS LIKE
  A reference for whoever builds and maintains the pages
- Version 1.4.0
+ Version 1.5.0
 ===============================================================
 
 Every article the converter produces follows the same shape.
@@ -34,7 +34,7 @@ Two principles explain most of the decisions here:
 
   ----- paste everything below this line into the Code Block -----
 
-  <!-- CBM Article Tools, Version 1.4.0 - converted ... -->
+  <!-- CBM Article Tools, Version 1.5.0 - converted ... -->
 
   <p style="font-size:1.15em; ...">            the blurb
   <p style="font-style:italic;">               article note
@@ -232,9 +232,33 @@ No <style> block, for the reason at the top.
 No <h1>, no classes on body paragraphs, no wrapper div around
 the article, no inline colours, no web fonts, no images.
 
-Images are never carried across. Place them as Image Blocks
-and split the text into two Code Blocks around each one.
-Footnote links still work across blocks: it is all one page.
+PHOTOGRAPHS
+
+  <figure class="cbm-figure cbm-figure-right" style="width:40%"
+          data-cbm-file="image1.png"
+          data-cbm-alt="A church building in Krapina">
+    <div class="cbm-image-missing">...</div>
+    <figcaption>...</figcaption>
+  </figure>
+
+The width is set on the figure itself rather than in the
+stylesheet, because it belongs to that one photograph: it is
+how large the picture is shown in Word, as a share of the text
+column. Everything else about figures is in the stylesheet.
+
+cbm-figure-left and cbm-figure-right float the picture so text
+wraps round it, above the wrapping width. Below it, every
+figure takes the full column.
+
+The cbm-image-missing block is a marker: the picture has not
+been uploaded yet and has no address. It is deliberately
+conspicuous. Designer > Place the pictures replaces each one
+with an <img> once the addresses are known, with a srcset so
+the browser takes a size that suits the screen.
+
+The data-cbm-file and data-cbm-alt attributes are how the
+placing step knows which picture goes where. They do nothing
+on the page and can be left alone.
 
 
 ---------------------------------------------------------------

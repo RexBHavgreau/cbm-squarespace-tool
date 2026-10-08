@@ -6,7 +6,7 @@ import re, math, copy, datetime, pathlib, unicodedata, zipfile
 import mammoth
 from bs4 import BeautifulSoup, Tag, NavigableString
 
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 
 # Kept so anything that still asks for a build number gets something sensible.
 BUILD = VERSION
@@ -163,6 +163,12 @@ STYLE_SCHEMA = [
         ("rule_opacity", "Opacity", "pct", 25),
         ("rule_space", "Space above and below", "em", 1.6),
     ]),
+    ("Pictures", [
+        ("fig_space", "Space above and below", "em", 1.4),
+        ("fig_caption_size", "Caption size", "em", 0.85),
+        ("fig_caption_align", "Caption alignment", "align", "center"),
+        ("fig_float_at", "Wrap text at or above", "px", 700),
+    ]),
     ("Footnotes", [
         ("fn_weight", "Number weight", "weight", 600),
     ]),
@@ -301,6 +307,22 @@ def article_css(opts=None, wrap=True):
   letter-spacing:0.09em; text-transform:uppercase; opacity:0.7;
   margin-bottom:0.5em;
 }}
+.cbm-article .cbm-figure {{
+  margin:{v['fig_space']}em auto; max-width:100%;
+}}
+.cbm-article .cbm-figure img {{ width:100%; height:auto; display:block; }}
+.cbm-article .cbm-figure figcaption {{
+  font-size:{v['fig_caption_size']}em; text-align:{v['fig_caption_align']};
+  opacity:0.8; margin-top:0.5em;
+}}
+.cbm-article .cbm-image-missing {{
+  border:2px dashed currentColor; padding:1.4em 1em; text-align:center;
+  font-size:0.85em; line-height:1.7; opacity:0.85;
+}}
+.cbm-article .cbm-image-missing strong {{
+  display:block; letter-spacing:0.08em;
+}}
+.cbm-article .cbm-image-missing span {{ display:block; font-size:0.9em; }}
 .cbm-article .cbm-footnotes {{ list-style:none; padding-left:0; }}
 .cbm-article .footnote-back {{ text-decoration:none; font-weight:{v['fn_weight']}; }}
 
@@ -318,6 +340,27 @@ def article_css(opts=None, wrap=True):
     float:right; margin-right:-{v['pq_outdent']}in; margin-left:1.6em;
   }}
 }}
+/* Text wraps round a picture only when there is room for it to read. */
+@media (min-width: {v['fig_float_at']}px) {{
+  .cbm-article .cbm-figure-left {{
+    float:left; margin:0.4em 1.6em 0.9em 0;
+  }}
+  .cbm-article .cbm-figure-right {{
+    float:right; margin:0.4em 0 0.9em 1.6em;
+  }}
+}}
+/* Narrower than that, a picture takes the full width. The width set on each
+   figure is particular to that picture, so overriding it needs !important. */
+@media (max-width: {int(v['fig_float_at']) - 1}px) {{
+  .cbm-article .cbm-figure {{ width:100% !important; float:none; }}
+}}
+/* A picture and a pull quote should never float alongside each other. */
+.cbm-article .cbm-figure-left + .cbm-pq-left,
+.cbm-article .cbm-pq-left + .cbm-figure-left {{ clear:left; }}
+.cbm-article .cbm-figure-right + .cbm-pq-right,
+.cbm-article .cbm-pq-right + .cbm-figure-right {{ clear:right; }}
+
+.cbm-article h2, .cbm-article h3, .cbm-article h4,
 .cbm-article .cbm-rule, .cbm-article .cbm-footnotes,
 .cbm-article section {{ clear:both; }}
 {CSS_END}"""
@@ -401,17 +444,41 @@ def fragments(text):
 # ---------------------------------------------------------------- readers ---
 
 def read_docx(path):
-    """Word -> HTML, with house styles mapped to marker elements."""
+    """
+    Word -> HTML, with house styles mapped to marker elements.
+
+    Pictures are kept aside rather than written into the page: the reader's
+    habit is to encode each one as text inside the HTML, which turns a
+    one-megabyte photograph into a megabyte of article.
+    """
     rules = [f"p[style-name='Heading {i}'] => h{i}:fresh" for i in range(1, 7)]
-    seen = set()
+    rules.append("p[style-name='Caption'] => div.cbm-caption:fresh")
     for style in docx_style_names(path):
         role = role_of(style)
         if role and "'" not in style:
             rules.append(f"p[style-name='{style}'] => div.cbm-{role}:fresh")
-            seen.add(role)
+
+    kept = []
+
+    def keep(image):
+        index = len(kept)
+        extension = {
+            "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif",
+            "image/tiff": "tif", "image/bmp": "bmp", "image/x-emf": "emf",
+            "image/webp": "webp",
+        }.get(image.content_type, "img")
+        with image.open() as handle:
+            data = handle.read()
+        name = f"image{index + 1}.{extension}"
+        kept.append({"name": name, "data": data, "type": image.content_type,
+                     "alt": (getattr(image, "alt_text", "") or "").strip()})
+        return {"src": name, "data-cbm-picture": str(index)}
+
     with open(path, "rb") as fh:
-        result = mammoth.convert_to_html(fh, style_map="\n".join(rules))
-    return result.value, [str(m) for m in result.messages]
+        result = mammoth.convert_to_html(
+            fh, style_map="\n".join(rules),
+            convert_image=mammoth.images.img_element(keep))
+    return result.value, [str(m) for m in result.messages], kept
 
 
 def docx_style_names(path):
@@ -556,6 +623,33 @@ def fix_self_links(soup):
 
 
 # ---------------------------------------------------------------- features ---
+
+def tidy_footnote_callouts(soup):
+    """
+    The raised number in the text.
+
+    Two things to undo. The Word reader brackets every reference, giving
+    "[1]" where house style wants a bare numeral. And a reference that an
+    author also superscripted by hand arrives wrapped twice, which shrinks
+    the number to almost nothing.
+    """
+    brackets = nested = 0
+    for sup in list(soup.find_all("sup")):
+        inner = sup.find("sup")
+        while inner is not None:
+            inner.unwrap()
+            nested += 1
+            inner = sup.find("sup")
+    for link in soup.find_all("a", href=True):
+        if not link.find_parent("sup"):
+            continue
+        text = link.get_text()
+        stripped = re.sub(r"^\s*\[\s*(.+?)\s*\]\s*$", r"\1", text)
+        if stripped != text:
+            link.string = stripped
+            brackets += 1
+    return brackets, nested
+
 
 def number_footnotes(soup):
     """Make each footnote's number the link back to its callout."""
@@ -713,6 +807,76 @@ def build_byline(soup, opts):
         link.string = name
         para.append(link)
     return para, names
+
+
+def build_figures(soup, pictures):
+    """
+    Turn each picture into a figure that says what belongs there.
+
+    Nothing is embedded. The article carries a marked block naming the file,
+    which is replaced with the real picture once it has been uploaded and has
+    an address. A caption beside the picture in Word comes with it.
+    """
+    made, missing_alt = [], []
+    for image in list(soup.find_all("img")):
+        index = image.get("data-cbm-picture")
+        detail = {}
+        if index is not None and index.isdigit() and int(index) < len(pictures):
+            detail = pictures[int(index)]
+        filename = detail.get("name") or pathlib.Path(
+            str(image.get("src") or "image")).name
+        alt = (image.get("alt") or detail.get("alt") or "").strip()
+
+        figure = soup.new_tag("figure")
+        classes = ["cbm-figure"]
+        side = detail.get("side")
+        if side:
+            classes.append(f"cbm-figure-{side}")
+        figure["class"] = classes
+        percent = detail.get("percent")
+        if percent and percent < 100:
+            # Per-picture geometry, not house styling: it belongs to this one
+            # photograph and cannot live in a shared stylesheet.
+            figure["style"] = f"width:{percent}%"
+        figure["data-cbm-file"] = filename
+        if alt:
+            figure["data-cbm-alt"] = alt
+        else:
+            missing_alt.append(filename)
+
+        slot = soup.new_tag("div")
+        slot["class"] = ["cbm-image-missing"]
+        size = ""
+        if detail.get("width_in"):
+            size = f" \u2014 {detail['width_in']} \u00d7 {detail['height_in']} in"
+        strong = soup.new_tag("strong")
+        strong.string = "PICTURE GOES HERE"
+        slot.append(strong)
+        slot.append(NavigableString(filename + size))
+        note = soup.new_tag("span")
+        note.string = "Replace this block with the picture, or delete it."
+        slot.append(note)
+        figure.append(slot)
+
+        # A Word caption sitting either side of the picture comes with it.
+        holder = image.parent
+        target = holder if holder is not None and holder.name == "p" and \
+            not holder.get_text(strip=True) else image
+        caption = None
+        for probe in (target.find_next_sibling(), target.find_previous_sibling()):
+            if isinstance(probe, Tag) and probe.get("data-role") == "caption":
+                caption = probe
+                break
+        if caption is not None:
+            cap = soup.new_tag("figcaption")
+            for child in list(caption.contents):
+                cap.append(child.extract())
+            figure.append(cap)
+            caption.decompose()
+
+        target.replace_with(figure)
+        made.append(figure)
+    return made, missing_alt
 
 
 def share_row(soup, classes=("cbm-share",)):
@@ -992,13 +1156,20 @@ def convert(path, decide_orphans=None, opts=None):
     opts = opts or options()
     log = []
     if path.suffix.lower() == ".docx":
-        html, messages = read_docx(path)
+        html, messages, pictures = read_docx(path)
+        # The reader gives the picture's bytes; the document itself says how
+        # big it is shown and whether text wraps round it. Same order, so
+        # they line up.
+        for picture, placement in zip(pictures, docx_pictures(path)):
+            picture.update({k: v for k, v in placement.items()
+                            if k != "alt" or not picture.get("alt")})
         soup = BeautifulSoup(html, "html.parser")
         apply_docx_roles(soup)
         unknown = [m for m in messages if "Unrecognised paragraph style" in m]
         if unknown:
             log.append(f"{len(unknown)} unrecognised Word style(s); those became body text")
     else:
+        pictures = []
         html, roles, css_found = read_indesign(path)
         soup = BeautifulSoup(html, "html.parser")
         if soup.body is not None:
@@ -1014,6 +1185,7 @@ def convert(path, decide_orphans=None, opts=None):
     label_front_matter(soup)
     fix_self_links(soup)
 
+    figures, missing_alt = build_figures(soup, pictures)
     quotes = build_pull_quotes(soup)
     moved, orphans = relocate_pull_quotes(soup, quotes)
     if orphans:
@@ -1026,10 +1198,12 @@ def convert(path, decide_orphans=None, opts=None):
         log.append(f"removed {len(orphans)} pull quote(s) that matched no paragraph")
     alternate_sides(soup)
 
+    brackets, nested = tidy_footnote_callouts(soup)
     linked = number_footnotes(soup)
     tabs = outbound_links_new_tab(soup)
     heads = style_headings(soup)
     meta, words, minutes = assemble(soup, opts)
+    meta["pictures"] = pictures
     rtl = mark_languages(soup)
     inline_he = tag_inline_hebrew(soup)
 
@@ -1063,7 +1237,18 @@ def convert(path, decide_orphans=None, opts=None):
 
     log.append(f"{len(quotes)} pull quote(s); {moved} moved into place" if quotes
                else "no pull quotes")
+    if figures:
+        log.append(f"{len(figures)} picture(s) set aside with a marker in the text")
+    if missing_alt:
+        log.append("no alt text on: " + ", ".join(missing_alt))
+        log.append("   alt text describes a picture to readers using a screen "
+                   "reader, and to search engines. Add it in Word: right-click "
+                   "the picture, then Alt Text.")
     log.append(f"{linked} footnote number(s) linked back")
+    if brackets:
+        log.append(f"removed brackets from {brackets} footnote callout(s)")
+    if nested:
+        log.append(f"unwrapped {nested} doubled superscript(s) in the text")
     log.append(f"headings: " + ", ".join(f"{k} {v}" for k, v in sorted(heads.items())) if heads
                else "no headings found")
     log.append(f"{words} words in the body - {minutes} min read")
@@ -1076,21 +1261,40 @@ def convert(path, decide_orphans=None, opts=None):
     return header + stamp + "\n" + body.strip() + "\n", meta, log
 
 
-def for_checking(html, opts=None):
+def for_checking(html, opts=None, images_dir=None):
     """
-    The same article with the stylesheet attached, so the .html renders on
-    its own. The .txt deliberately carries none: on the site the styling
-    comes from Custom CSS, where one edit reaches every article ever
-    published.
+    The same article with the stylesheet attached, and the pictures shown
+    from the folder beside it, so the .html renders properly when it is
+    opened to check. The .txt keeps its markers: on the site the pictures
+    are uploaded and the styling comes from Custom CSS.
     """
     opts = opts or options()
     marker = '<div class="cbm-article">'
     if marker not in html:
         return html
-    return html.replace(marker, marker + "\n" + article_css(opts), 1)
+    html = html.replace(marker, marker + "\n" + article_css(opts), 1)
+    if not images_dir:
+        return html
+    soup = BeautifulSoup(html, "html.parser")
+    for figure in soup.find_all("figure", class_="cbm-figure"):
+        slot = figure.find("div", class_="cbm-image-missing")
+        name = figure.get("data-cbm-file")
+        if slot is None or not name:
+            continue
+        picture = soup.new_tag("img")
+        picture["src"] = f"{images_dir}/{name}"
+        picture["alt"] = figure.get("data-cbm-alt", "")
+        picture["style"] = "width:100%;height:auto;display:block"
+        slot.replace_with(picture)
+    return soup.decode()
 
 
-def write_outputs(source, html, opts=None):
+def images_dir(stem):
+    """The folder the pictures go in, beside the article."""
+    return f"{stem}-pictures"
+
+
+def write_outputs(source, html, opts=None, pictures=()):
     """Write .html and .txt, stamped with the time. Beside the original by
     default, or into a folder chosen in the settings."""
     opts = opts or options()
@@ -1109,9 +1313,18 @@ def write_outputs(source, html, opts=None):
     # Notepad, and the two tracks produce visibly different files.
     def windows_lines(text):
         return text.replace("\r\n", "\n").replace("\n", "\r\n").encode("utf-8")
-    out_html.write_bytes(windows_lines(for_checking(html, opts)))
+    out_html.write_bytes(windows_lines(for_checking(html, opts, images_dir=images_dir(base))))
     out_txt.write_bytes(windows_lines(html))
-    return out_html, out_txt
+
+    written = []
+    if pictures:
+        folder = out_html.parent / images_dir(base)
+        folder.mkdir(exist_ok=True)
+        for picture in pictures:
+            target = folder / picture["name"]
+            target.write_bytes(picture["data"])
+            written.append(target)
+    return out_html, out_txt, written
 
 
 # ------------------------------------------------- adding styles to a file ---
@@ -1723,3 +1936,117 @@ def sample_article(opts=None):
             "</style></head><body><div class=\"page\">"
             + article_css(opts) + '<div class="cbm-article">' + body
             + "</div></div></body></html>")
+
+
+# --------------------------------------------------------------- pictures ---
+# Word records how big a picture is shown and whether text wraps around it.
+# Reading that means the editor sizes and places a photograph in Word, the
+# way they always have, and the article follows.
+
+EMU_PER_INCH = 914400
+
+
+def _text_column_inches(xml):
+    """The width of the text column, for turning a picture's width into a share
+    of it. Falls back to a typical 6.5in if the section is not described."""
+    page = re.search(r'<w:pgSz\b[^>]*w:w="(\d+)"', xml)
+    margins = re.search(r'<w:pgMar\b[^>]*>', xml)
+    if not page:
+        return 6.5
+    width = int(page.group(1)) / 1440.0          # twentieths of a point
+    left = right = 1.0
+    if margins:
+        ml = re.search(r'w:left="(\d+)"', margins.group(0))
+        mr = re.search(r'w:right="(\d+)"', margins.group(0))
+        if ml:
+            left = int(ml.group(1)) / 1440.0
+        if mr:
+            right = int(mr.group(1)) / 1440.0
+    return max(1.0, width - left - right)
+
+
+def docx_pictures(path):
+    """
+    Every picture in the document, in order, with how Word shows it.
+
+    side is "left", "right" or None; None means it sits in the text flow at
+    full width rather than having text wrapped around it.
+    """
+    try:
+        with zipfile.ZipFile(path) as z:
+            xml = z.read("word/document.xml").decode("utf-8", "replace")
+    except Exception:
+        return []
+    column = _text_column_inches(xml)
+    found = []
+    for m in re.finditer(r"<w:drawing>.*?</w:drawing>", xml, re.S):
+        frag = m.group(0)
+        extent = re.search(r'<wp:extent\b[^>]*cx="(\d+)"[^>]*cy="(\d+)"', frag)
+        width_in = int(extent.group(1)) / EMU_PER_INCH if extent else column
+        height_in = int(extent.group(2)) / EMU_PER_INCH if extent else 0
+        alt = ""
+        doc_pr = re.search(r"<wp:docPr\b[^>]*>", frag)
+        if doc_pr:
+            descr = re.search(r'descr="([^"]*)"', doc_pr.group(0))
+            if descr:
+                alt = descr.group(1).strip()
+        side = None
+        if "<wp:anchor" in frag and not re.search(r"<wp:wrapNone\b", frag):
+            if re.search(r"<wp:wrap(Square|Tight|Through)\b", frag):
+                align = re.search(r"<wp:align>(left|right)</wp:align>", frag)
+                side = align.group(1) if align else "left"
+        share = max(10, min(100, round(100.0 * width_in / column)))
+        found.append({
+            "width_in": round(width_in, 2),
+            "height_in": round(height_in, 2),
+            "percent": share,
+            "side": side,
+            "alt": alt,
+        })
+    return found
+
+
+def pictures_awaiting(html):
+    """Every picture marker in an article, in order."""
+    soup = BeautifulSoup(html, "html.parser")
+    waiting = []
+    for figure in soup.find_all("figure", class_="cbm-figure"):
+        if figure.find("div", class_="cbm-image-missing") is None:
+            continue
+        waiting.append({
+            "file": figure.get("data-cbm-file", ""),
+            "alt": figure.get("data-cbm-alt", ""),
+        })
+    return waiting
+
+
+def place_pictures(html, addresses, widths=(600, 1000, 1600)):
+    """
+    Replace each marker with the real picture, once it has been uploaded and
+    has an address. addresses maps a file name to its address.
+
+    Squarespace resizes on request, so a set of widths is offered and the
+    browser takes whichever suits the reader's screen.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    placed, left = 0, 0
+    for figure in soup.find_all("figure", class_="cbm-figure"):
+        slot = figure.find("div", class_="cbm-image-missing")
+        if slot is None:
+            continue
+        name = figure.get("data-cbm-file", "")
+        address = (addresses.get(name) or "").strip()
+        if not address:
+            left += 1
+            continue
+        picture = soup.new_tag("img")
+        picture["src"] = address
+        picture["alt"] = figure.get("data-cbm-alt", "")
+        picture["loading"] = "lazy"
+        if "squarespace" in address and "?" not in address:
+            picture["srcset"] = ", ".join(
+                f"{address}?format={w}w {w}w" for w in widths)
+            picture["sizes"] = "(min-width: 700px) 50vw, 100vw"
+        slot.replace_with(picture)
+        placed += 1
+    return restore_svg_case(tidy_lines(soup.decode())), placed, left

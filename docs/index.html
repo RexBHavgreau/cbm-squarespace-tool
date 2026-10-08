@@ -99,7 +99,7 @@ a { color:var(--accent); }
   <p class="standfirst">What the converter hands you, how to put it on the site,
      and what every part of the markup is for.</p>
   <p class="version">
-    <span>Matches converter <strong>1.4.0</strong></span>
+    <span>Matches converter <strong>1.5.0</strong></span>
     <span>Updated <strong>06 October 2026</strong></span>
     <span><a href="https://github.com/RexBHavgreau/cbm-squarespace-tool/releases">Releases</a></span>
   </p>
@@ -210,6 +210,25 @@ Aleksander Gurtaev
   <pre class="spec-code"><code>&lt;p&gt;A sentence with a note.&lt;sup&gt;&lt;a href=&quot;#demo-fn1&quot; id=&quot;demo-ref1&quot;&gt;1&lt;/a&gt;&lt;/sup&gt;&lt;/p&gt;
 &lt;ol class=&quot;cbm-footnotes&quot;&gt;&lt;li id=&quot;demo-fn1&quot;&gt;&lt;p&gt;&lt;a href=&quot;#demo-ref1&quot; class=&quot;footnote-back&quot;&gt;1.&lt;/a&gt;&amp;#160;See Jonathan H. Rainbow, &lt;em&gt;Confessor Baptism&lt;/em&gt;, 189–92.&lt;/p&gt;&lt;/li&gt;&lt;/ol&gt;</code></pre>
 </section>
+
+<h2 class="section">Photographs</h2>
+<p>Pictures do not arrive inside the code. Each is saved to a folder beside the
+   article, and the article carries a marked block where it belongs:</p>
+<pre class="block">&lt;figure class="cbm-figure cbm-figure-right" style="width:40%"&gt;
+  &lt;div class="cbm-image-missing"&gt;PICTURE GOES HERE &#8230;&lt;/div&gt;
+  &lt;figcaption&gt;&#8230;&lt;/figcaption&gt;
+&lt;/figure&gt;</pre>
+<p>Upload the pictures to the site, then in the converter use
+   <strong>Designer &#8250; Place the pictures</strong> and paste each address. It
+   returns a copy of the article with the real pictures in place, each with a
+   <code>srcset</code> so the browser takes a size that suits the screen.</p>
+<p>The width on the figure is the one piece of styling that is not in the
+   stylesheet, because it belongs to that single photograph &#8212; it is how large
+   the picture is shown in the Word document, as a share of the text column.</p>
+<div class="warn">
+  <p>If a marked block reaches a published page, a picture was missed. It is
+     designed to be conspicuous for exactly that reason.</p>
+</div>
 
 <h2 class="section">The stylesheet</h2>
 <p>Articles no longer carry their own styling. It lives in Custom CSS, so one

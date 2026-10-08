@@ -52,6 +52,30 @@ number.
 
 ## Releases
 
+### 1.5.0
+
+Photographs. A picture in a Word document is no longer written into the
+article as a megabyte of encoded text. Each one is saved to a folder
+beside the article, and the article carries a conspicuous marker where
+it belongs. How wide the picture is shown in Word becomes its share of
+the text column, so it keeps its own shape; Word's text wrapping becomes
+a float, with the picture taking the full column on a narrow screen. Alt
+text and a Word caption come across, and any picture without alt text is
+reported. Designer then Place the pictures swaps the markers for the real
+thing once they have been uploaded, with a srcset so the browser takes a
+suitable size.
+
+Footnote callouts are fixed. Every Word-track article until now had its
+reference numbers in square brackets, which came from the Word reader's
+own default; they are now bare numerals, matching the InDesign track. A
+reference that an author also superscripted by hand arrived wrapped
+twice and rendered microscopically; those are now unwrapped.
+
+**Articles published before this release should be reconverted and
+re-pasted** — for the brackets, and because they still carry their own
+copy of the styling from before 1.4.0 moved it to Custom CSS. The
+stylesheet has new rules for figures, so re-export it from Designer.
+
 ### 1.4.0
 
 A linked byline. The Author style now produces "By" and the names in

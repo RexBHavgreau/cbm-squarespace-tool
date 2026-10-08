@@ -1,6 +1,6 @@
 ===============================================================
  CBM ARTICLE CONVERTER - USER GUIDE
- Version 1.4.0
+ Version 1.5.0
 ===============================================================
 
 This turns a finished article into HTML that can be pasted
@@ -331,7 +331,7 @@ Share links on pull quotes do nothing
 
 Every finished file begins with a hidden line:
 
-  <!-- CBM Article Tools, Version 1.4.0 - converted 2026-10-04
+  <!-- CBM Article Tools, Version 1.5.0 - converted 2026-10-04
        10:32 - from: Gurtaev_Water_Baptism.html -->
 
 It never shows on the page. It survives into the Code Block,
@@ -388,6 +388,53 @@ of the app you want, wherever it is kept.
 
 Only shortcuts named after this app are removed. Nothing else
 on the Desktop is touched.
+
+
+---------------------------------------------------------------
+ PHOTOGRAPHS
+---------------------------------------------------------------
+
+Put the picture in the Word document where it belongs, sized
+and wrapped the way it should appear. The converter reads both:
+
+  how wide it is shown   becomes a share of the text column,
+                         so the photograph keeps its own shape
+
+  how text wraps round   in line, or wrapped left or right
+
+To wrap text round a picture in Word, select it, then Layout
+Options, then Square, and drag it to the side you want.
+
+ALT TEXT
+
+  Right-click the picture, then Alt Text, and describe it in a
+  sentence. This is read aloud to anyone using a screen reader
+  and is used by search engines. The converter reports any
+  picture without it, but converts anyway.
+
+CAPTIONS
+
+  A paragraph in Word's own Caption style, directly above or
+  below the picture, travels with it. Nothing is reported if
+  there is no caption.
+
+WHAT COMES OUT
+
+  The pictures are saved to a folder beside the article, named
+  after it. The article itself carries a marked block where
+  each one belongs, because a picture has no web address until
+  it has been uploaded.
+
+  The .html shows the real pictures from that folder, so the
+  article looks right when you check it.
+
+PUTTING THEM IN
+
+  Whoever builds the page uploads the pictures to the site,
+  then uses Designer > Place the pictures, pastes each address,
+  and gets a copy of the article with the pictures in place.
+
+  Leaving an address blank keeps that marker for later.
 
 
 ---------------------------------------------------------------
