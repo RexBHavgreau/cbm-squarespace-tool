@@ -1,6 +1,6 @@
 ===============================================================
  CBM ARTICLE CONVERTER - USER GUIDE
- Version 1.5.1
+ Version 1.6.0
 ===============================================================
 
 This turns a finished article into HTML that can be pasted
@@ -222,6 +222,28 @@ ellipsis and it will still match.
 
 
 ---------------------------------------------------------------
+ A PDF OF THE ARTICLE
+---------------------------------------------------------------
+
+Switch on "PDF link" in Preferences and each conversion asks
+whether there is a PDF, offering three answers:
+
+  type the file name
+  Choose the PDF...   fills the name in from a file you pick
+  No PDF              nothing is added
+
+Only the name is used. Nothing is read from the PDF itself, so
+this works whether or not you have the file to hand.
+
+The article links to /s/ plus that name, which is where
+Squarespace serves anything uploaded through Settings > Files.
+The name is also printed above the code, so whoever uploads
+the PDF knows exactly what to call it.
+
+Leave "PDF link" switched off and you are never asked.
+
+
+---------------------------------------------------------------
  ADDING HOUSE STYLES TO AN AUTHOR'S FILE
 ---------------------------------------------------------------
 
@@ -229,9 +251,22 @@ Authors send documents with no styles, or with styles they
 invented. Rather than rebuild the file and risk losing things,
 this copies the house styles INTO it.
 
-Press "Add house styles...", choose the author's .docx, and
-confirm which template to use. A new file appears beside the
-original:
+Choose the article first, then press "Apply Styles to DOCX".
+Every Word document among the chosen files is done at once;
+anything that is not a .docx is reported and skipped.
+
+The first time a template is used, the app shows what is in it
+and asks which styles to copy. The ones the converter
+understands are ticked already, so accepting the list gives
+you what you want. The choice is remembered, and asked again
+only if the template changes. Preferences > Styles to copy
+from the template reopens it.
+
+Anything a chosen style depends on comes too: ticking Verse
+Block also brings Block Text and Quote, because it is built on
+them.
+
+A new file appears beside the original:
 
   <original name> (house styles).docx
 
@@ -331,7 +366,7 @@ Share links on pull quotes do nothing
 
 Every finished file begins with a hidden line:
 
-  <!-- CBM Article Tools, Version 1.5.1 - converted 2026-10-04
+  <!-- CBM Article Tools, Version 1.6.0 - converted 2026-10-04
        10:32 - from: Gurtaev_Water_Baptism.html -->
 
 It never shows on the page. It survives into the Code Block,

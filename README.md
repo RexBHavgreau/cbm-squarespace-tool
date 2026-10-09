@@ -52,6 +52,30 @@ number.
 
 ## Releases
 
+### 1.6.0
+
+Applying styles from a template now shows what the template actually
+contains rather than looking for a fixed list of names. The styles are
+grouped — the ones the converter understands first, then the house
+list, then everything else — with the useful ones ticked already. The
+choice is remembered per template and asked again only when the
+template changes. This also fixes a quiet gap: the converter has always
+recognised Author and Title styles that the old fixed list never
+copied.
+
+A PDF link, switched on in Preferences, sitting just after the reading
+time. Each conversion asks for the file name, which can be typed or
+filled in by picking the file; the article links to /s/ plus that name,
+and the name is printed above the code so it is uploaded under exactly
+the right one.
+
+The article link card rules have moved into the exported stylesheet, so
+they live in Custom CSS with everything else. A card no longer carries
+its own styling, which means deleting the first card from a profile
+page can no longer strip the styling from all the others.
+**Re-export the stylesheet and re-paste it; then re-paste any profile
+page cards already built.**
+
 ### 1.5.1
 
 Fixes the share links. The script that fills them in only looked inside

@@ -1,6 +1,6 @@
 """
 CBM Article Converter
-Version 1.5.1
+Version 1.6.0
 
 A small window: choose an article, convert it, read what happened.
 Works on Windows and macOS. Nothing to install beyond the app itself.
@@ -149,10 +149,14 @@ class CardBuilder(tk.Toplevel):
             var = tk.StringVar()
             tk.Entry(line, textvariable=var, width=48).pack(side="left")
             self.entries[key] = var
-        self.include_style = tk.BooleanVar(value=True)
-        tk.Checkbutton(self, anchor="w", variable=self.include_style,
-                       text="Include the styling (leave off when adding to an "
-                            "existing list)").pack(fill="x", padx=18, pady=(8, 0))
+        self.first_on_page = tk.BooleanVar(value=True)
+        tk.Checkbutton(self, anchor="w", variable=self.first_on_page,
+                       text="First card on this page"
+                       ).pack(fill="x", padx=18, pady=(8, 0))
+        tk.Label(self, anchor="w", justify="left", fg="#666", wraplength=470,
+                 text=("The first card brings the wrapper the others sit "
+                       "inside. Paste a later card within that wrapper, before "
+                       "its closing tag.")).pack(fill="x", padx=18)
         foot = tk.Frame(self)
         foot.pack(fill="x", padx=18, pady=14)
         tk.Button(foot, text="Close", width=9, command=self.destroy).pack(side="right")
@@ -178,7 +182,152 @@ class CardBuilder(tk.Toplevel):
                 "An address and a title are the least it needs.")
             return
         CopyWindow(self, "Article card",
-                   core.article_card(entry, with_style=self.include_style.get()))
+                   core.article_card(entry, first_on_page=self.first_on_page.get()))
+
+
+class PdfPrompt(tk.Toplevel):
+    """
+    Which PDF belongs with this article, if any.
+
+    Squarespace serves an uploaded file from /s/, so only the name is
+    needed. Choosing the file fills it in exactly; nothing is read from the
+    file itself, so it works just as well typed by someone who does not
+    have it to hand.
+    """
+
+    def __init__(self, parent, article, suggestion):
+        super().__init__(parent)
+        self.result = None
+        self.title("A PDF for this article?")
+        self.resizable(False, False)
+        self.transient(parent)
+        self.grab_set()
+
+        tk.Label(self, text=pathlib.Path(article).name,
+                 font=("Helvetica", 11, "bold"), anchor="w", wraplength=460,
+                 justify="left").pack(fill="x", padx=18, pady=(16, 2))
+        tk.Label(self, anchor="w", justify="left", fg="#666", wraplength=460,
+                 text=("The article will link to this at /s/ plus the name. "
+                       "Whoever uploads it must use exactly the same name.")
+                 ).pack(fill="x", padx=18, pady=(0, 10))
+
+        row = tk.Frame(self)
+        row.pack(fill="x", padx=18)
+        self.name = tk.StringVar(value=suggestion)
+        tk.Entry(row, textvariable=self.name, width=46).pack(side="left")
+        tk.Button(row, text="Choose the PDF\u2026",
+                  command=self.browse).pack(side="left", padx=8)
+
+        foot = tk.Frame(self)
+        foot.pack(fill="x", padx=18, pady=16)
+        tk.Button(foot, text="No PDF", width=10,
+                  command=lambda: self.done(None)).pack(side="left")
+        tk.Button(foot, text="Use this name", width=14,
+                  command=self.accept).pack(side="right")
+        self.protocol("WM_DELETE_WINDOW", lambda: self.done(None))
+        self.geometry(f"+{parent.winfo_rootx() + 50}+{parent.winfo_rooty() + 70}")
+        self.wait_window(self)
+
+    def browse(self):
+        chosen = filedialog.askopenfilename(
+            title="Choose the PDF", filetypes=[("PDF", "*.pdf")])
+        if chosen:
+            self.name.set(pathlib.Path(chosen).name)
+
+    def accept(self):
+        self.done(self.name.get().strip() or None)
+
+    def done(self, value):
+        self.result = value
+        self.destroy()
+
+
+class StylePicker(tk.Toplevel):
+    """
+    Which of the template's styles to copy into an author's document.
+
+    Grouped so the useful ones come first: the names the converter knows,
+    then the house list, then everything else. Word's generated "X Char"
+    styles are left out, since they travel with their paragraph style.
+    """
+
+    GROUPS = [
+        ("recognised", "The converter understands these",
+         "Applied in Word, these become the blurb, pull quotes, verse and "
+         "the rest."),
+        ("preferred", "House styles",
+         "No special meaning, but part of how an article should look."),
+        ("custom", "Other styles in this template", ""),
+        ("character", "Character styles",
+         "Applied to words within a paragraph rather than to the whole of it."),
+        ("builtin", "Word's own styles", ""),
+    ]
+
+    def __init__(self, parent, template, rows, chosen, on_save):
+        super().__init__(parent)
+        self.on_save = on_save
+        self.template = template
+        self.title("Styles in this template")
+        self.minsize(520, 600)
+        self.transient(parent)
+        self.grab_set()
+        self.vars = {}
+
+        tk.Label(self, text=pathlib.Path(template).name,
+                 font=("Helvetica", 12, "bold"), anchor="w").pack(
+                 fill="x", padx=18, pady=(16, 2))
+        tk.Label(self, anchor="w", justify="left", fg="#666", wraplength=470,
+                 text=("Tick the styles to copy into an author's document. "
+                       "This is asked once per template; reopen it from "
+                       "Preferences.")).pack(fill="x", padx=18, pady=(0, 8))
+
+        canvas = tk.Canvas(self, highlightthickness=0, height=400)
+        bar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
+        inner = tk.Frame(canvas)
+        inner.bind("<Configure>",
+                   lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=inner, anchor="nw")
+        canvas.configure(yscrollcommand=bar.set)
+        canvas.pack(side="left", fill="both", expand=True, padx=(18, 0), pady=4)
+        bar.pack(side="right", fill="y", pady=4)
+
+        for key, heading, note in self.GROUPS:
+            group = [r for r in rows if r["group"] == key]
+            if not group:
+                continue
+            tk.Label(inner, text=heading, font=("Helvetica", 10, "bold"),
+                     anchor="w").pack(fill="x", pady=(12, 0))
+            if note:
+                tk.Label(inner, text=note, anchor="w", justify="left",
+                         fg="#777", wraplength=430).pack(fill="x")
+            for row in group:
+                var = tk.BooleanVar(value=row["name"] in chosen)
+                label = row["name"]
+                if row["role"]:
+                    label += f"   \u2192 {row['role'].replace('_', ' ')}"
+                tk.Checkbutton(inner, text=label, variable=var, anchor="w"
+                               ).pack(fill="x")
+                self.vars[row["name"]] = var
+
+        foot = tk.Frame(self)
+        foot.pack(fill="x", padx=18, pady=14)
+        tk.Button(foot, text="Tick the recognised ones", width=22,
+                  command=lambda: self.preset(rows)).pack(side="left")
+        tk.Button(foot, text="Cancel", width=9, command=self.destroy).pack(side="right")
+        tk.Button(foot, text="Save", width=9, command=self.save).pack(side="right", padx=8)
+        self.geometry(f"+{parent.winfo_rootx() + 30}+{parent.winfo_rooty() + 30}")
+
+    def preset(self, rows):
+        for row in rows:
+            var = self.vars.get(row["name"])
+            if var is not None:
+                var.set(row["group"] in ("recognised", "preferred"))
+
+    def save(self):
+        names = [n for n, v in self.vars.items() if v.get()]
+        core.remember_style_choice(self.template, names)
+        self.destroy()
+        self.on_save(names)
 
 
 class TemplateChoice(tk.Toplevel):
@@ -653,6 +802,8 @@ class App:
                               variable=self.auto_check,
                               command=self.save_auto_check)
         prefs.add_separator()
+        prefs.add_command(label="Styles to copy from the template\u2026",
+                          command=self.choose_styles)
         prefs.add_command(label="Desktop shortcut\u2026",
                           command=self.desktop_shortcut)
         prefs.add_separator()
@@ -860,11 +1011,43 @@ class App:
         if not template:
             self.say("No template chosen; nothing done.")
             return
+        names = core.remembered_style_choice(template)
+        if names is None:
+            # New template, or it has been edited since last time.
+            self.pick_styles(template, lambda chosen:
+                             self.apply_to(word, template, chosen))
+            return
+        self.apply_to(word, template, names)
+
+    def pick_styles(self, template, then):
+        rows = core.template_styles(template)
+        if not rows:
+            messagebox.showwarning(
+                "Could not read it",
+                "No styles could be read from that template. It may not be a "
+                "Word template, or it may be damaged.")
+            return
+        chosen = core.remembered_style_choice(template)
+        if chosen is None:
+            chosen = [r["name"] for r in rows
+                      if r["group"] in ("recognised", "preferred")]
+        StylePicker(self.root, template, rows, set(chosen), then)
+
+    def choose_styles(self):
+        """Reopen the picker for the remembered template."""
+        template = self.template or self.pick_template()
+        if not template:
+            return
+        self.pick_styles(template, lambda names: self.say(
+            f"{len(names)} style(s) will be copied from {pathlib.Path(template).name}."))
+
+    def apply_to(self, word, template, names):
         for path in word:
             self.say("")
             self.say(f"--- {path.name}")
             try:
-                out, added, already = core.add_house_styles(path, template)
+                out, added, already = core.add_house_styles(
+                    path, template, names=names)
             except Exception as exc:                      # noqa: BLE001
                 self.say(f"    FAILED  {exc}")
                 continue
@@ -1005,6 +1188,20 @@ class App:
         self.convert_btn.config(state="disabled", text="Working…")
         threading.Thread(target=self.run, daemon=True).start()
 
+    def ask_pdf(self, article):
+        """Only asked when the PDF block is switched on in Preferences."""
+        answer = {}
+        done = threading.Event()
+
+        def ask():
+            answer["value"] = PdfPrompt(
+                self.root, article, core.pdf_name_from(article)).result
+            done.set()
+
+        self.root.after(0, ask)
+        done.wait()
+        return answer.get("value")
+
     def ask_orphans(self, texts):
         answer = {}
         done = threading.Event()
@@ -1035,9 +1232,10 @@ class App:
             self.say("")
             self.say(f"--- {path.name}")
             try:
+                pdf = self.ask_pdf(path) if self.opts["include"].get("pdf") else None
                 html, meta, log = core.convert(
                     path, decide_orphans=lambda t: self.ask_orphans(t),
-                    opts=self.opts)
+                    opts=self.opts, pdf_file=pdf)
                 for line in log:
                     self.say("    " + line)
                 if html is None:

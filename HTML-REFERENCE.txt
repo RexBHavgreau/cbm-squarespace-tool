@@ -1,7 +1,7 @@
 ===============================================================
  CBM ARTICLE CONVERTER - WHAT THE HTML LOOKS LIKE
  A reference for whoever builds and maintains the pages
- Version 1.5.1
+ Version 1.6.0
 ===============================================================
 
 Every article the converter produces follows the same shape.
@@ -34,7 +34,7 @@ Two principles explain most of the decisions here:
 
   ----- paste everything below this line into the Code Block -----
 
-  <!-- CBM Article Tools, Version 1.5.1 - converted ... -->
+  <!-- CBM Article Tools, Version 1.6.0 - converted ... -->
 
   <p style="font-size:1.15em; ...">            the blurb
   <p style="font-style:italic;">               article note
@@ -203,6 +203,10 @@ last paragraph.
 
 These class names are stable and safe to target in Custom CSS:
 
+  .cbm-pdf               the PDF link's paragraph
+  .cbm-pdf-link          the link itself
+  .cbm-cards             a list of article link cards
+  .cbm-card              one card in that list
   .cbm-pullquote         the pull quote box
   .cbm-pullquote-text    the sentence inside it
   .cbm-pq-left           a pull quote on the left
@@ -231,6 +235,17 @@ No <style> block, for the reason at the top.
 
 No <h1>, no classes on body paragraphs, no wrapper div around
 the article, no inline colours, no web fonts, no images.
+
+PDF LINK
+
+  <p class="cbm-pdf"><a class="cbm-pdf-link"
+     href="/s/Gurtaev-Water-Baptism.pdf">PDF</a></p>
+
+Sits after the reading time. Squarespace serves anything
+uploaded through Settings > Files from /s/, so the address
+follows from the file name alone. The name is printed above
+the code for whoever uploads it.
+
 
 PHOTOGRAPHS
 

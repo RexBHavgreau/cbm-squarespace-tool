@@ -6,7 +6,7 @@ import re, math, copy, datetime, pathlib, unicodedata, zipfile
 import mammoth
 from bs4 import BeautifulSoup, Tag, NavigableString
 
-VERSION = "1.5.1"
+VERSION = "1.6.0"
 
 # Kept so anything that still asks for a build number gets something sensible.
 BUILD = VERSION
@@ -18,6 +18,9 @@ WORDS_PER_MINUTE = 200
 # so as the house style settles these values move and everyone follows.
 
 PROFILE_BASE = "/profile/"
+# Squarespace serves anything uploaded through Settings > Files from here, so
+# the address is predictable from the file name alone.
+PDF_BASE = "/s/"
 
 
 def author_slug(name):
@@ -41,6 +44,7 @@ BLOCK_LABELS = {
     "blurb": "Blurb",
     "note": "Article note",
     "read": "Reading time",
+    "pdf": "PDF link",
     "body": "Article body",
     "share": "Share this article",
     "bio": "Author bio",
@@ -49,10 +53,11 @@ FIXED_BLOCK = "body"          # always present; may be moved
 PINNED_LAST = "footnotes"     # generated from the body, so nothing follows it
 
 DEFAULTS = {
-    "order": ["byline", "blurb", "note", "read", "body", "share", "bio"],
+    "order": ["byline", "blurb", "note", "read", "pdf", "body", "share", "bio"],
     "include": {"byline": True, "blurb": True, "note": True, "read": True,
-                "body": True, "share": False, "bio": True},
+                "pdf": False, "body": True, "share": False, "bio": True},
     "profile_base": PROFILE_BASE,
+    "pdf_base": PDF_BASE,
     "known_authors": [],
     "style": {},
     # Left to the site by default: heading alignment is the only thing the
@@ -168,6 +173,18 @@ STYLE_SCHEMA = [
         ("fig_caption_size", "Caption size", "em", 0.85),
         ("fig_caption_align", "Caption alignment", "align", "center"),
         ("fig_float_at", "Wrap text at or above", "px", 700),
+    ]),
+    ("PDF link", [
+        ("pdf_label", "Text", "text", "PDF"),
+        ("pdf_size", "Size", "em", 0.78),
+        ("pdf_align", "Alignment", "align", "center"),
+        ("pdf_caps", "Capitals", "bool", True),
+        ("pdf_boxed", "Draw a box round it", "bool", True),
+    ]),
+    ("Article link cards", [
+        ("card_title_size", "Title size", "em", 1.15),
+        ("card_thumb_width", "Picture column", "em", 15),
+        ("card_wide_at", "Side by side at or above", "em", 46),
     ]),
     ("Footnotes", [
         ("fn_weight", "Number weight", "weight", 600),
@@ -363,6 +380,40 @@ def article_css(opts=None, wrap=True):
 .cbm-article h2, .cbm-article h3, .cbm-article h4,
 .cbm-article .cbm-rule, .cbm-article .cbm-footnotes,
 .cbm-article section {{ clear:both; }}
+.cbm-article .cbm-pdf {{ text-align:{v['pdf_align']}; margin:1em 0; }}
+.cbm-article .cbm-pdf-link {{
+  font-size:{v['pdf_size']}em; letter-spacing:0.09em;
+  text-transform:{'uppercase' if v['pdf_caps'] else 'none'};
+  text-decoration:none; color:inherit;
+  {'display:inline-block; border:1px solid currentColor; padding:0.4em 1.1em;' if v['pdf_boxed'] else 'text-decoration:underline;'}
+}}
+.cbm-article .cbm-pdf-link:hover {{ opacity:0.75; }}
+
+/* ---- Article link cards, for the author profile pages ---------------- */
+.cbm-cards {{ margin:2em 0; }}
+.cbm-cards .cbm-card {{
+  display:grid; grid-template-columns:1fr; gap:0.9em; padding:1.6em 0;
+  border-top:1px solid color-mix(in srgb, currentColor 22%, transparent);
+}}
+.cbm-cards .cbm-card:last-child {{
+  border-bottom:1px solid color-mix(in srgb, currentColor 22%, transparent);
+}}
+.cbm-cards img {{
+  width:100%; height:auto; display:block; aspect-ratio:3/2; object-fit:cover;
+}}
+.cbm-cards h3 {{ margin:0 0 0.3em; font-size:{v['card_title_size']}em; line-height:1.3; }}
+.cbm-cards h3 a {{ color:inherit; text-decoration:none; }}
+.cbm-cards h3 a:hover {{ text-decoration:underline; }}
+.cbm-cards .cbm-card-date {{
+  margin:0 0 0.5em; font-size:0.75em; letter-spacing:0.08em;
+  text-transform:uppercase; opacity:0.7;
+}}
+.cbm-cards .cbm-card-excerpt {{ margin:0; opacity:0.85; }}
+@media (min-width:{v['card_wide_at']}em) {{
+  .cbm-cards .cbm-card {{
+    grid-template-columns:{v['card_thumb_width']}em 1fr; gap:1.6em; align-items:start;
+  }}
+}}
 {CSS_END}"""
     return f"<style>\n{css}\n</style>" if wrap else css
 
@@ -784,6 +835,40 @@ def mark_languages(soup):
 
 # ------------------------------------------------------------- pull quotes ---
 
+def pdf_name_from(source):
+    """A sensible PDF name suggested from the article's own file name."""
+    stem = re.sub(r"^\d{8}_\d{4}_", "", pathlib.Path(source).stem)
+    stem = re.sub(r"\s*\((?:house styles|with pictures)\)\s*", "", stem)
+    stem = re.sub(r"[\[\]]", "", stem)
+    stem = re.sub(r"[^A-Za-z0-9]+", "-", stem).strip("-")
+    return (stem or "article") + ".pdf"
+
+
+def build_pdf_link(soup, opts, filename):
+    """
+    A link to the article as a PDF.
+
+    Squarespace serves an uploaded file from /s/, so the address follows
+    from the file name. Whoever uploads it must use exactly that name, which
+    is why it is also printed above the code.
+    """
+    if not filename:
+        return None
+    name = pathlib.Path(str(filename).strip()).name
+    if not name:
+        return None
+    if not name.lower().endswith(".pdf"):
+        name += ".pdf"
+    base = (opts.get("pdf_base") or PDF_BASE)
+    para = soup.new_tag("p")
+    para["class"] = ["cbm-pdf"]
+    link = soup.new_tag("a", href=base.rstrip("/") + "/" + name)
+    link["class"] = ["cbm-pdf-link"]
+    link.string = style_values(opts).get("pdf_label") or "PDF"
+    para.append(link)
+    return para, name
+
+
 def build_byline(soup, opts):
     """
     "By Chris Burnett, Scott Callaham, Kyle Dunham and Josh Sherrill", each
@@ -1034,13 +1119,13 @@ def rule(soup):
     return hr
 
 
-def assemble(soup, opts):
+def assemble(soup, opts, pdf_file=None):
     """
     Lift the title and author out, then rebuild the article in the order the
     settings ask for. The body is always present but may be moved; the
     footnotes always come last, because they are generated from the body.
     """
-    meta = {"title": "", "author": "", "authors": []}
+    meta = {"title": "", "author": "", "authors": [], "pdf": ""}
     author_el = soup.find("p", attrs={"data-role": "author"})
     if author_el is not None:
         meta["author"] = plain(author_el)
@@ -1070,6 +1155,12 @@ def assemble(soup, opts):
     # Collect the movable blocks out of the flow.
     blocks = {}
     blocks["byline"] = [byline] if byline is not None else []
+    blocks["pdf"] = []
+    if opts["include"].get("pdf") and pdf_file:
+        made = build_pdf_link(soup, opts, pdf_file)
+        if made is not None:
+            blocks["pdf"] = [made[0]]
+            meta["pdf"] = made[1]
     blocks["blurb"] = [el.extract() for el in soup.find_all("p", class_="cbm-blurb")]
     blocks["note"] = [el.extract() for el in soup.find_all("p", class_="cbm-note")]
     bios = soup.find_all("p", attrs={"data-role": "author_bio"})
@@ -1151,7 +1242,7 @@ def tidy_lines(html):
     return html.strip()
 
 
-def convert(path, decide_orphans=None, opts=None):
+def convert(path, decide_orphans=None, opts=None, pdf_file=None):
     """
     Convert one file. decide_orphans(list_of_texts) is called when a pull quote
     matches nothing; return True to proceed without them, False to abandon.
@@ -1207,7 +1298,7 @@ def convert(path, decide_orphans=None, opts=None):
     linked = number_footnotes(soup)
     tabs = outbound_links_new_tab(soup)
     heads = style_headings(soup)
-    meta, words, minutes = assemble(soup, opts)
+    meta, words, minutes = assemble(soup, opts, pdf_file)
     meta["pictures"] = pictures
     rtl = mark_languages(soup)
     inline_he = tag_inline_hebrew(soup)
@@ -1227,6 +1318,11 @@ def convert(path, decide_orphans=None, opts=None):
         header += f"TITLE\n{meta['title']}\n\n"
     if meta.get("author"):
         header += f"AUTHOR\n{meta['author']}\n\n"
+    if meta.get("pdf"):
+        header += ("PDF TO UPLOAD\n"
+                   f"  {meta['pdf']}\n"
+                   "  Upload through Settings \u203a Files under exactly this\n"
+                   f"  name, or the link in the article will be dead.\n\n")
     known = {author_slug(n) for n in (opts.get("known_authors") or [])}
     base = (opts.get("profile_base") or PROFILE_BASE).rstrip("/")
     unknown = [n for n in meta.get("authors", []) if author_slug(n) not in known]
@@ -1334,15 +1430,22 @@ def write_outputs(source, html, opts=None, pictures=()):
 
 # ------------------------------------------------- adding styles to a file ---
 
-# The styles an editor actually applies. Left/Right Side Bar are optional:
-# pull quotes alternate sides on their own, and these only pin one to a side.
-# First Paragraph is deliberately absent - it existed for Pandoc's benefit and
-# nothing emits it now.
-HOUSE_STYLE_WANTED = [
-    "Author Bio", "Blurb", "Side Bar", "Verse Block", "Article Note",
-    "Block Text", "Body Text",
-]
+# Styles worth copying even though the converter has no role for them: they
+# carry the house look rather than a meaning. Kept as a plain list so a
+# preferences pane can replace it later without touching anything else.
+PREFERRED_STYLES = ["Body Text", "Block Text"]
+
+# Kept for anything still referring to them.
+HOUSE_STYLE_WANTED = PREFERRED_STYLES
 HOUSE_STYLE_OPTIONAL = ["Left Side Bar", "Right Side Bar"]
+
+
+def preferred_styles(settings=None):
+    """The house list, from the settings if one has been saved there."""
+    saved = (settings or load_settings()).get("preferred_styles")
+    if isinstance(saved, list) and saved:
+        return [str(x) for x in saved]
+    return list(PREFERRED_STYLES)
 
 
 def _styles_xml(path):
@@ -1379,7 +1482,89 @@ def _needed_with_parents(wanted_ids, source):
     return needed
 
 
-def add_house_styles(manuscript, template, out_path=None):
+def template_styles(template, settings=None):
+    """
+    Every paragraph style the template defines, grouped so the useful ones
+    come first.
+
+      recognised  the converter knows what to do with this name
+      preferred   no role, but part of the house look
+      custom      someone made it; probably not ours
+      builtin     Word's own
+
+    Character styles are left out: they travel automatically as dependencies
+    of the paragraph styles that link to them.
+    """
+    try:
+        blocks = _style_blocks(_styles_xml(template))
+    except Exception:
+        return []
+    from html import unescape
+    wanted = {w.lower() for w in preferred_styles(settings)}
+    rows = []
+    for sid, (name, block) in blocks.items():
+        kind = re.search(r'w:type="(\w+)"', block)
+        kind = kind.group(1) if kind else ""
+        if kind in ("numbering", "table"):
+            continue
+        name = unescape(name)
+        # "Blurb Char" and the like are generated alongside their paragraph
+        # style and come with it, so they are noise in a chooser.
+        if re.search(r"\s(Char|Car)$", name):
+            continue
+        role = role_of(name)
+        if kind == "character":
+            group = "character"
+        elif role:
+            group = "recognised"
+        elif name.lower() in wanted:
+            group = "preferred"
+        elif 'w:customStyle="1"' in block:
+            group = "custom"
+        else:
+            group = "builtin"
+        rows.append({"id": sid, "name": name, "group": group, "role": role,
+                     "kind": kind or "paragraph"})
+    order = {"recognised": 0, "preferred": 1, "custom": 2,
+             "character": 3, "builtin": 4}
+    rows.sort(key=lambda r: (order[r["group"]], r["name"].lower()))
+    return rows
+
+
+def template_fingerprint(template):
+    """Enough to notice that a template has been swapped or edited."""
+    import hashlib
+    path = pathlib.Path(template)
+    try:
+        stamp = f"{path.name}:{path.stat().st_size}:{int(path.stat().st_mtime)}"
+    except OSError:
+        stamp = str(path)
+    return hashlib.sha1(stamp.encode("utf-8")).hexdigest()[:12]
+
+
+def remembered_style_choice(template):
+    """What was ticked last time, if this is the same template."""
+    data = load_settings().get("style_choices") or {}
+    entry = data.get(str(pathlib.Path(template)))
+    if not entry:
+        return None
+    if entry.get("fingerprint") != template_fingerprint(template):
+        return None               # it has been edited; ask again
+    return entry.get("styles")
+
+
+def remember_style_choice(template, names):
+    data = load_settings()
+    choices = data.get("style_choices") or {}
+    choices[str(pathlib.Path(template))] = {
+        "fingerprint": template_fingerprint(template),
+        "styles": list(names),
+    }
+    data["style_choices"] = choices
+    save_settings(data)
+
+
+def add_house_styles(manuscript, template, out_path=None, names=None):
     """
     Copy the house styles from the template into a copy of the manuscript.
     Nothing in the document is rewritten: only style definitions are added,
@@ -1391,10 +1576,13 @@ def add_house_styles(manuscript, template, out_path=None):
     dst_xml = _styles_xml(manuscript)
     dst = _style_blocks(dst_xml)
 
+    if names is None:
+        names = [row["name"] for row in template_styles(template)
+                 if row["group"] in ("recognised", "preferred")]
+    chosen = {n.lower() for n in names}
     wanted_ids, skipped = [], []
     for sid, (name, _block) in src.items():
-        if any(w.lower() == name.lower()
-               for w in HOUSE_STYLE_WANTED + HOUSE_STYLE_OPTIONAL):
+        if name.lower() in chosen:
             if any(d_name.lower() == name.lower() for d_name, _ in dst.values()):
                 skipped.append(name)
             else:
@@ -1814,32 +2002,9 @@ def app_folder():
 
 # ----------------------------------------------------- article link cards ---
 
-CARD_CSS = """<style>
-.cbm-cards { margin:2em 0; }
-.cbm-cards .cbm-card {
-  display:grid; grid-template-columns:1fr; gap:0.9em; padding:1.6em 0;
-  border-top:1px solid color-mix(in srgb, currentColor 22%, transparent);
-}
-.cbm-cards .cbm-card:last-child {
-  border-bottom:1px solid color-mix(in srgb, currentColor 22%, transparent);
-}
-.cbm-cards img { width:100%; height:auto; display:block; aspect-ratio:3/2; object-fit:cover; }
-.cbm-cards h3 { margin:0 0 0.3em; font-size:1.15em; line-height:1.3; }
-.cbm-cards h3 a { color:inherit; text-decoration:none; }
-.cbm-cards h3 a:hover { text-decoration:underline; }
-.cbm-cards .cbm-card-date {
-  margin:0 0 0.5em; font-size:0.75em; letter-spacing:0.08em;
-  text-transform:uppercase; opacity:0.7;
-}
-.cbm-cards .cbm-card-excerpt { margin:0; opacity:0.85; }
-@media (min-width:46em) {
-  .cbm-cards .cbm-card {
-    grid-template-columns:15em 1fr; gap:1.6em; align-items:start;
-  }
-}
-</style>"""
-
-
+# The card rules now live in the exported stylesheet, so a card carries no
+# styling of its own. Only the first card on a page needs the wrapper, which
+# holds the list margin and the specificity those rules depend on.
 def fetch_article(url, timeout=15):
     """
     Read one article's details straight from the site, so nobody has to
@@ -1884,8 +2049,13 @@ def fetch_article(url, timeout=15):
         "details by hand, or try an article published more recently.")
 
 
-def article_card(entry, with_style=True):
-    """One card, ready to paste. Repeat the inner div for more articles."""
+def article_card(entry, first_on_page=True):
+    """
+    One card, ready to paste.
+
+    The first card on a page comes inside the .cbm-cards wrapper; any card
+    after that is pasted inside that same wrapper, so it is returned bare.
+    """
     from html import escape
     title = escape(entry.get("title") or "")
     url = escape(entry.get("url") or "")
@@ -1902,15 +2072,16 @@ def article_card(entry, with_style=True):
             + f'    <h3><a href="{url}">{title}</a></h3>\n'
             + (f'    <p class="cbm-card-excerpt">{excerpt}</p>\n' if excerpt else "")
             + '  </div>\n</div>')
-    if not with_style:
+    if not first_on_page:
         return card
-    return '<div class="cbm-cards">\n' + CARD_CSS + "\n\n" + card + "\n</div>"
+    return '<div class="cbm-cards">\n' + card + "\n</div>"
 
 
 SAMPLE_BODY = """<p class="cbm-byline">By <a href="/profile/chris-burnett">Chris Burnett</a> and <a href="/profile/scott-callaham">Scott Callaham</a></p>
 <p class="cbm-blurb">Russian evangelicalism developed under the influence of Orthodoxy rather than the Reformation.</p>
 <p class="cbm-note">This is the second in a series.</p>
 <p class="cbm-read">__CLOCK__27 min read</p>
+<p class="cbm-pdf"><a class="cbm-pdf-link" href="#">PDF</a></p>
 <hr class="cbm-rule" />
 <h2>Baptism and the Gospel</h2>
 <aside class="cbm-pullquote cbm-pq-left"><p class="cbm-pullquote-text">Baptism is not the final step of salvation.</p><p class="cbm-share">__SHARE__</p></aside>
