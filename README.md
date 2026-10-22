@@ -72,6 +72,11 @@ Word's Subtitle style is no longer mistaken for the title. A subtitle
 used to be left in the body with no styling and uncounted in the
 reading time; it is now an ordinary paragraph.
 
+Wrapped pictures can be outdented into the margin like pull quotes:
+a new Outdent setting under Pictures in Designer › Article styles,
+0 by default, so nothing moves until it is set. The style preview now
+includes a picture. **Re-export the stylesheet to use it.**
+
 A picture with text wrapped round it is no longer written inside its
 paragraph. HTML does not allow that, and browsers coped by breaking the
 paragraph apart, leaving its text without its paragraph spacing. The

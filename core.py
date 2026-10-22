@@ -173,6 +173,7 @@ STYLE_SCHEMA = [
         ("fig_caption_size", "Caption size", "em", 0.85),
         ("fig_caption_align", "Caption alignment", "align", "center"),
         ("fig_float_at", "Wrap text at or above", "px", 700),
+        ("fig_outdent", "Outdent, as pull quotes float", "in", 0),
     ]),
     ("PDF link", [
         ("pdf_label", "Text", "text", "PDF"),
@@ -370,6 +371,12 @@ def article_css(opts=None, wrap=True):
    figure is particular to that picture, so overriding it needs !important. */
 @media (max-width: {int(v['fig_float_at']) - 1}px) {{
   .cbm-article .cbm-figure {{ width:100% !important; float:none; }}
+}}
+/* Out into the margin like the pull quotes, and only where they float:
+   on a narrower screen there is no margin to spare. */
+@media (min-width: {v['pq_float_at']}px) {{
+  .cbm-article .cbm-figure-left {{ margin-left:-{v['fig_outdent']}in; }}
+  .cbm-article .cbm-figure-right {{ margin-right:-{v['fig_outdent']}in; }}
 }}
 /* A picture and a pull quote should never float alongside each other. */
 .cbm-article .cbm-figure-left + .cbm-pq-left,
@@ -2159,7 +2166,8 @@ SAMPLE_BODY = """<p class="cbm-byline">By <a href="/profile/chris-burnett">Chris
 <h2>Baptism and the Gospel</h2>
 <aside class="cbm-pullquote cbm-pq-left"><p class="cbm-pullquote-text">Baptism is not the final step of salvation.</p><p class="cbm-share">__SHARE__</p></aside>
 <p>Second, baptism is not the final step of salvation. If it were, the thief on the cross could have had no hope, and Paul would not have thanked God that he baptised so few at Corinth. The Reformers returned to this point repeatedly, because the alternative makes the sacrament the thing that saves.<sup><a href="#s-fn1" id="s-ref1">1</a></sup></p>
-<p>The quotes alternate down the article: the first sits left, the next right. That is worked out in reading order.</p>
+<figure class="cbm-figure cbm-figure-right" style="width:40%"><div class="cbm-image-missing"><strong>PICTURE GOES HERE</strong>image1.jpg</div><figcaption>A wrapped picture, with its caption.</figcaption></figure>
+<p>The quotes alternate down the article: the first sits left, the next right. That is worked out in reading order. A picture wrapped in Word floats the same way, on the side it was given there, and the text runs round it while there is room. On a narrow screen it takes the full width instead, so the text is never squeezed into a sliver beside it.</p>
 <h4>A lesser heading</h4>
 <p class="cbm-verse">The LORD is my shepherd;<br/>I shall not want.</p>
 <blockquote><p>We do not become members of Christ\u2019s body by the act of baptism.</p></blockquote>

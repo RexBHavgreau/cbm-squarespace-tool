@@ -479,6 +479,15 @@ PUTTING THEM IN
 
   Leaving an address blank keeps that marker for later.
 
+OUTDENTING
+
+  A wrapped picture can reach out into the margin, the way pull
+  quotes do. Set Designer > Article styles > Pictures > Outdent,
+  then copy the stylesheet into Custom CSS again. It applies only
+  on screens wide enough for pull quotes to float; on narrower
+  ones there is no margin to reach into. 0 keeps pictures within
+  the text column.
+
 
 ---------------------------------------------------------------
  THE BYLINE AND AUTHOR PROFILES
