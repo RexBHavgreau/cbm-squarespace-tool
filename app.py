@@ -650,12 +650,15 @@ class StylePanel(tk.Toplevel):
             var = tk.BooleanVar(value=bool(value))
             tk.Checkbutton(row, text=label, variable=var, anchor="w").pack(
                 side="left", fill="x", expand=True)
-        elif kind in ("align", "align_none"):
+        elif kind in ("align", "align_none", "underline"):
             var = tk.StringVar(value=str(value))
             tk.Label(row, text=label, width=22, anchor="w").pack(side="left")
             choices = [("left", "Left"), ("center", "Centred"), ("right", "Right")]
             if kind == "align_none":
                 choices.append(("none", "Site decides"))
+            if kind == "underline":
+                choices = [("underline", "Underline"), ("none", "No underline"),
+                           ("site", "Site decides")]
             for val, text in choices:
                 tk.Radiobutton(row, text=text, value=val, variable=var).pack(side="left")
         elif kind == "text":
@@ -680,7 +683,7 @@ class StylePanel(tk.Toplevel):
             raw = var.get()
             if kind == "bool":
                 out[key] = bool(raw)
-            elif kind in ("align", "align_none", "text"):
+            elif kind in ("align", "align_none", "underline", "text"):
                 out[key] = str(raw)
             else:
                 try:

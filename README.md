@@ -77,9 +77,16 @@ a new Outdent setting under Pictures in Designer › Article styles,
 0 by default, so nothing moves until it is set. The style preview now
 includes a picture. **Re-export the stylesheet to use it.**
 
+Links can be underlined or not, article-wide: a new Links setting in
+Designer › Article styles, left to the site by default. Share icons
+and a boxed PDF link are never underlined.
+
 The PDF link can take the site's link colour rather than the text
-colour: untick Text colour under PDF link in Designer › Article
-styles, then re-export the stylesheet. Ticked by default, as before.
+colour: untick Text colour under PDF link. Ticked by default. This
+also fixes the PDF link showing the site's link colour when it should
+have matched the text: Squarespace colours links in a Code Block with
+a more specific rule, which outranked the converter's. **Re-export the
+stylesheet for any of these.**
 
 A picture with text wrapped round it is no longer written inside its
 paragraph. HTML does not allow that, and browsers coped by breaking the

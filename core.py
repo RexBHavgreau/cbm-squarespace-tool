@@ -158,6 +158,9 @@ STYLE_SCHEMA = [
         ("pq_outdent", "Outdent", "in", 0.75),
         ("pq_float_at", "Float at or above", "px", 900),
     ]),
+    ("Links", [
+        ("link_underline", "Underline", "underline", "site"),
+    ]),
     ("Share icons", [
         ("share_size", "Icon size", "em", 1.15),
         ("share_gap", "Spacing", "em", 0.45),
@@ -264,6 +267,16 @@ def article_css(opts=None, wrap=True):
         headings = (f".cbm-article h2, .cbm-article h3 {{ text-align:{v['heading_align']}; }}\n"
                     f".cbm-article h4 {{ text-align:{v['heading_align']}; "
                     f"font-style:{italic(v['h4_italic'])}; }}")
+    # Every text link in the article, footnote numbers included. Not the share
+    # icons, and not a boxed PDF link, which the box already marks. The :not()s
+    # also outrank the footnote and PDF rules, so this has the last word.
+    if v["link_underline"] in ("underline", "none"):
+        skip = ":not(.cbm-share-x):not(.cbm-share-fb):not(.cbm-share-email)"
+        if v["pdf_boxed"]:
+            skip += ":not(.cbm-pdf-link)"
+        links = f".cbm-article a{skip} {{ text-decoration:{v['link_underline']}; }}"
+    else:
+        links = "/* link underlining left to the site */"
     css = f"""{CSS_BEGIN}
 .cbm-article .cbm-blurb {{
   font-size:{v['blurb_size']}em; line-height:{v['blurb_line']};
@@ -389,13 +402,16 @@ def article_css(opts=None, wrap=True):
 .cbm-article .cbm-rule, .cbm-article .cbm-footnotes,
 .cbm-article section {{ clear:both; }}
 .cbm-article .cbm-pdf {{ text-align:{v['pdf_align']}; margin:1em 0; }}
+/* !important because Squarespace colours and underlines links in a Code
+   Block with a rule more specific than this one. */
 .cbm-article .cbm-pdf-link {{
   font-size:{v['pdf_size']}em; letter-spacing:0.09em;
   text-transform:{'uppercase' if v['pdf_caps'] else 'none'};
-  text-decoration:none;{' color:inherit;' if v['pdf_text_color'] else ''}
-  {'display:inline-block; border:1px solid currentColor; padding:0.4em 1.1em;' if v['pdf_boxed'] else 'text-decoration:underline;'}
+  {'color:inherit !important;' if v['pdf_text_color'] else ''}
+  {'display:inline-block; border:1px solid currentColor; padding:0.4em 1.1em; text-decoration:none !important;' if v['pdf_boxed'] else 'text-decoration:underline;'}
 }}
 .cbm-article .cbm-pdf-link:hover {{ opacity:0.75; }}
+{links}
 
 /* ---- Article link cards, for the author profile pages ---------------- */
 .cbm-cards {{ margin:2em 0; }}
@@ -2181,7 +2197,8 @@ SAMPLE_BODY = """<p class="cbm-byline">By <a href="/profile/chris-burnett">Chris
 def sample_article(opts=None):
     """A complete little article, for seeing the styles at work."""
     share = "".join(
-        f'<a href="#" title="Share">{ICONS[k]}</a>' for k in ("x", "fb", "email"))
+        f'<a href="#" class="cbm-share-{k}" title="Share">{ICONS[k]}</a>'
+        for k in ("x", "fb", "email"))
     body = SAMPLE_BODY.replace("__CLOCK__", CLOCK).replace("__SHARE__", share)
     body = restore_svg_case(body)
     return ("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\">"

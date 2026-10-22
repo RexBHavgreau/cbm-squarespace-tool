@@ -550,6 +550,15 @@ COPY THE ARTICLE STYLESHEET
   The block is marked BEGIN and END. Anything written outside
   those lines is yours and survives a fresh paste.
 
+LINKS
+
+  Under Article styles > Links, choose whether links in an
+  article are underlined: Underline, No underline, or Site
+  decides (the default, which leaves it to Squarespace). It
+  covers links in the text, the byline, the bio and the
+  footnote numbers. Share icons are never underlined, and nor
+  is a boxed PDF link, since the box already marks it.
+
 BUILD AN ARTICLE CARD
 
   Paste an article's address and it reads the title, date,
