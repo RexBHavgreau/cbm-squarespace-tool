@@ -6,7 +6,7 @@ import re, math, copy, datetime, pathlib, unicodedata, zipfile
 import mammoth
 from bs4 import BeautifulSoup, Tag, NavigableString
 
-VERSION = "1.6.1"
+VERSION = "1.7.0"
 
 # Kept so anything that still asks for a build number gets something sensible.
 BUILD = VERSION
@@ -211,7 +211,7 @@ def style_values(opts=None):
 # Word paragraph styles -> internal roles. Matched loosely: a style called
 # "Verse Block" counts as verse, "Side-Bar" as a pull quote.
 ROLE_PATTERNS = [
-    ("title",      r"title"),
+    ("title",      r"(?<!sub)title"),
     ("author_bio", r"author.?bio"),
     ("author",     r"author|byline"),
     ("blurb",      r"blurb|deck|summary|standfirst"),
@@ -1240,6 +1240,21 @@ def assemble(soup, opts, pdf_file=None):
             soup.append(node)
     for node in footnotes:
         soup.append(node)
+
+    # What the article should have had but did not. The usual cause is the
+    # style being lost in Word while its look stayed, which nothing on the
+    # page betrays, so it is said plainly here.
+    missing = []
+    if not meta["title"]:
+        missing.append(("Title", "Title style, or a line starting “Title:”"))
+    if not meta["author"]:
+        missing.append(("Author", "Author style, or a line starting “Author:”"))
+    for name, label, style in (("blurb", "Blurb", "Blurb style"),
+                               ("bio", "Author bio", "Author Bio style"),
+                               ("note", "Article note", "Article Note style")):
+        if opts["include"].get(name) and not blocks[name]:
+            missing.append((label, style))
+    meta["missing"] = missing
     return meta, words, minutes
 
 
@@ -1381,6 +1396,12 @@ def convert(path, decide_orphans=None, opts=None, pdf_file=None):
     if header:
         header += "----- paste everything below this line into the Code Block -----\n\n"
 
+    for label, style in meta.get("missing", []):
+        if label == "Article note":
+            log.append("no article note (fine unless this article should have "
+                       "one, in the Article Note style)")
+        else:
+            log.append(f"WARNING no {label.lower()} found: nothing uses the {style}")
     log.append(f"{len(quotes)} pull quote(s); {moved} moved into place" if quotes
                else "no pull quotes")
     if figures:

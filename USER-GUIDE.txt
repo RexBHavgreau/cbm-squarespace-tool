@@ -1,6 +1,6 @@
 ===============================================================
  CBM ARTICLE CONVERTER - USER GUIDE
- Version 1.6.1
+ Version 1.7.0
 ===============================================================
 
 This turns a finished article into HTML that can be pasted
@@ -84,12 +84,15 @@ Italics typed directly are kept. So are Word's own footnotes.
 Footnotes typed by hand as plain numbers are not footnotes and
 cannot be made into them afterwards.
 
-Title and Author are found by their labels in the text:
+Title and Author are found either way: by the Title and
+Author styles, or by labels typed at the start of the line,
+before the first heading:
 
   Title: The Faulty Hermeneutics of the Assumption
   Author: Joshua Daugereau
 
-Leave those labels in. They are stripped during conversion.
+Labels are stripped during conversion. Word's Subtitle style
+is not a title; it stays an ordinary paragraph.
 
 For Verse Block, use ONE paragraph per stanza and press
 Shift+Enter between the lines inside it. Do not make each line
@@ -339,6 +342,15 @@ only on pages that actually contain Hebrew.
 
 Read the report panel first. It says what it did.
 
+"WARNING no blurb found: nothing uses the Blurb style"
+  The article has no paragraph in that style, though
+  Preferences asks for one. The same is said of the title,
+  author and author bio. Usually the paragraph lost its style
+  in Word but kept its look, so nothing seems wrong until
+  now. Click in it, check the Styles pane, reapply the style
+  and convert again. A missing article note is only noted,
+  since most articles have none.
+
 "no stylesheet found; italics may be lost"
   An InDesign export without its "-web-resources" folder
   beside it. Put them back together and convert again.
@@ -366,7 +378,7 @@ Share links on pull quotes do nothing
 
 Every finished file begins with a hidden line:
 
-  <!-- CBM Article Tools, Version 1.6.1 - converted 2026-10-04
+  <!-- CBM Article Tools, Version 1.7.0 - converted 2026-10-04
        10:32 - from: Gurtaev_Water_Baptism.html -->
 
 It never shows on the page. It survives into the Code Block,

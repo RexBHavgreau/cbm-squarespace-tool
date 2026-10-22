@@ -52,16 +52,26 @@ number.
 
 ## Releases
 
-### 1.6.1
+### 1.7.0
 
-Fixes a blurb that went missing. When Blurb is applied in Word with the
-text selected but not the paragraph mark, Word quietly applies its
-"Blurb Char" half instead. It looks the same in Word, but the converter
-only read paragraph styles, so the blurb became ordinary body text and
-was never moved to where Preferences puts it. A paragraph whose text is
-all in a house style's Char half is now treated as that style, for the
-blurb and every other house style, and the report says so. One that
-covers only part of a paragraph is reported rather than lost silently.
+Warns when an article is missing something it should have. If no
+paragraph uses the Title, Author, Blurb or Author Bio style, the
+report says so, for the blurb and bio only when Preferences includes
+them. A paragraph that loses its style in Word usually keeps its look,
+so until now the only sign was the piece missing from the page. A
+missing article note is noted but not warned about, since most
+articles have none.
+
+Word's Subtitle style is no longer mistaken for the title. A subtitle
+used to be left in the body with no styling and uncounted in the
+reading time; it is now an ordinary paragraph.
+
+Also fixes a blurb that went missing when Word applied its "Blurb
+Char" half. That happens when the text is selected without the
+paragraph mark; it looks the same in Word, but the converter read only
+paragraph styles. A paragraph whose text is all in a house style's
+Char half is now treated as that style; one only partly in it
+is reported.
 
 ### 1.6.0
 
