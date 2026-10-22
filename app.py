@@ -139,8 +139,9 @@ class CardBuilder(tk.Toplevel):
         self.lookup_btn = tk.Button(row, text="Look up", width=9, command=self.lookup)
         self.lookup_btn.pack(side="left", padx=8)
         tk.Label(self, anchor="w", fg="#666", justify="left", wraplength=470,
-                 text=("An article on this site, an article anywhere else, or a "
-                       "book's Amazon link. Looking it up fills in the rest. "
+                 text=("An article or video on this site, one anywhere else "
+                       "(YouTube and Vimeo included), or a book's Amazon link. "
+                       "Looking it up fills in the rest. "
                        "Anything can be edited before the card is built, and a "
                        "blank field is simply left out.")).pack(fill="x", padx=18, pady=(4, 8))
 
@@ -150,6 +151,9 @@ class CardBuilder(tk.Toplevel):
         for value, text in core.CARD_KINDS:
             tk.Radiobutton(kinds, text=text, value=value, variable=self.kind,
                            command=self.sync).pack(side="left", padx=(0, 10))
+        self.video = tk.BooleanVar(value=False)
+        self.video_box = tk.Checkbutton(kinds, text="Video", variable=self.video)
+        self.video_box.pack(side="left", padx=(10, 0))
 
         self.entries, self.fields = {}, {}
         for key, label in self.FIELDS:
@@ -181,10 +185,12 @@ class CardBuilder(tk.Toplevel):
         self.geometry(f"+{parent.winfo_rootx() + 50}+{parent.winfo_rooty() + 60}")
 
     def sync(self):
-        """From means nothing on a card for this site, so it is shut off there,
-        and a book is labelled Book unless something else has been typed."""
+        """From means nothing on a card for this site, so it is shut off there;
+        a book is labelled Book unless something else has been typed, and is
+        never a video."""
         kind = self.kind.get()
         self.fields["where"].configure(state="disabled" if kind == "site" else "normal")
+        self.video_box.configure(state="disabled" if kind == "book" else "normal")
         if kind == "book" and not self.entries["where"].get().strip():
             self.entries["where"].set("Book")
 
@@ -219,6 +225,7 @@ class CardBuilder(tk.Toplevel):
             messagebox.showwarning("Could not look it up", str(found), parent=self)
             return
         self.kind.set(found.get("kind", "site"))
+        self.video.set(bool(found.get("video")))
         for key, var in self.entries.items():
             var.set(found.get(key, ""))
         self.url.set(found.get("url", self.url.get()))
@@ -228,6 +235,7 @@ class CardBuilder(tk.Toplevel):
         entry = {key: var.get().strip() for key, var in self.entries.items()}
         entry["url"] = self.url.get().strip()
         entry["kind"] = self.kind.get()
+        entry["video"] = self.video.get()
         if not entry["url"] or not entry["title"]:
             messagebox.showwarning(
                 "Not enough to build with",

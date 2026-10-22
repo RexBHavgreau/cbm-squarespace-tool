@@ -591,6 +591,15 @@ BUILD A CARD
                            link cannot be looked up; use the
                            paperback's link instead.
 
+  VIDEOS. Any of the first two can be a video: tick Video, or
+  let Look up tick it. A video card has a play button over its
+  picture. On this site it reads VIDEO · 5 MARCH 2024. A
+  YouTube or Vimeo link is looked up through the service's own
+  link preview and reads YOUTUBE or VIMEO; YouTube gives no
+  date or description, so type them if wanted. Look up spots a
+  video on this site from its address or details where it can;
+  if it misses one, tick Video by hand.
+
   The guess can be changed by choosing another of the three.
   Every field can be edited before building, and a blank one
   is left out. From is the publication's name, or Book.

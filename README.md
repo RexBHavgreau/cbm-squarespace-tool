@@ -77,8 +77,11 @@ Cards for more than articles on this site. The card builder (Designer
 read from the summary a page keeps for social media and labelled with
 the publication's name, and for books, looked up from an Amazon link's
 ISBN through Google Books and Open Library, with the cover shown whole.
-Both open in a new tab. **Re-export the stylesheet before adding a
-book card.**
+Videos too: a Video tick puts a play button over the card's picture,
+for a video on this site ("Video · 5 March 2024") or a YouTube or
+Vimeo link, looked up through the service's own oEmbed. Cards for
+anything off the site open in a new tab. **Re-export the stylesheet
+before adding a book or video card.**
 
 Apply Styles to DOCX no longer asks which template to use: the window
 already shows it, with Change beside it. You are asked only when no

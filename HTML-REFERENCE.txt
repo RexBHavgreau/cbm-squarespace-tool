@@ -209,6 +209,8 @@ These class names are stable and safe to target in Custom CSS:
   .cbm-card              one card in that list
   .cbm-card-book         a card for a book: the cover is shown
                          whole rather than cropped
+  .cbm-card-video        a card for a video: a play button is
+                         drawn over its picture
   .cbm-pullquote         the pull quote box
   .cbm-pullquote-text    the sentence inside it
   .cbm-pq-left           a pull quote on the left

@@ -453,6 +453,19 @@ def article_css(opts=None, wrap=True):
   text-transform:uppercase; opacity:0.7;
 }}
 .cbm-cards .cbm-card-excerpt {{ margin:0; opacity:0.85; }}
+/* A video's picture carries a play button, so it reads as one at a glance.
+   Drawn in CSS: a dark disc with a white triangle, as video players do. */
+.cbm-cards .cbm-card-video > a:first-child {{ position:relative; display:block; }}
+.cbm-cards .cbm-card-video > a:first-child::before {{
+  content:""; position:absolute; left:50%; top:50%; width:3.2em; height:3.2em;
+  margin:-1.6em 0 0 -1.6em; border-radius:50%; background:rgba(0,0,0,0.6);
+}}
+.cbm-cards .cbm-card-video > a:first-child::after {{
+  content:""; position:absolute; left:50%; top:50%; margin:-0.7em 0 0 -0.4em;
+  border-style:solid; border-width:0.7em 0 0.7em 1.15em;
+  border-color:transparent transparent transparent #fff;
+}}
+.cbm-cards .cbm-card-video > a:first-child:hover::before {{ background:rgba(0,0,0,0.8); }}
 /* A book cover is shown whole and upright, not cropped to the landscape frame. */
 .cbm-cards .cbm-card-book img {{
   aspect-ratio:auto; object-fit:contain; width:auto; max-width:100%; max-height:16em;
@@ -2135,6 +2148,15 @@ CARD_KINDS = [("site", "Article on this site"), ("external", "Article elsewhere"
 AMAZON_CODE = re.compile(r"/(?:dp|gp/product|exec/obidos/ASIN)/([0-9]{9}[0-9Xx]|B0[0-9A-Z]{8})")
 CARD_AGENT = f"Mozilla/5.0 (compatible; CBM-Article-Converter/{VERSION})"
 
+# YouTube and Vimeo each answer a link with its title and thumbnail through
+# oEmbed, the service they provide for exactly this; their pages are not read.
+VIDEO_SERVICES = [
+    ("YouTube", re.compile(r"(^|\.)(youtube\.com|youtu\.be)$"),
+     "https://www.youtube.com/oembed?format=json&url="),
+    ("Vimeo", re.compile(r"(^|\.)vimeo\.com$"),
+     "https://vimeo.com/api/oembed.json?url="),
+]
+
 
 def describe_lookup_error(exc):
     """What went wrong looking up a card, in terms of the card."""
@@ -2208,6 +2230,8 @@ def fetch_card(url, timeout=15):
         raise UpdateError("No address given.")
     if card_kind(url) == "book":
         return fetch_book(url, timeout)
+    if video_service(url):
+        return fetch_video(url, timeout)
     try:
         found = fetch_article(url, timeout)
         found["kind"] = "site"
@@ -2215,6 +2239,37 @@ def fetch_card(url, timeout=15):
     except UpdateError:
         pass
     return fetch_page(url, timeout)
+
+
+def video_service(url):
+    """("YouTube", oEmbed address) for a YouTube or Vimeo link, else None."""
+    import urllib.parse
+    host = urllib.parse.urlsplit(url if "://" in url else "https://" + url).netloc.lower()
+    for name, hosts, endpoint in VIDEO_SERVICES:
+        if hosts.search(host.split(":")[0]):
+            return name, endpoint
+    return None
+
+
+def fetch_video(url, timeout=15):
+    """A YouTube or Vimeo video, from the service's own oEmbed answer."""
+    import json
+    import urllib.parse
+    url = url if "://" in url else "https://" + url
+    name, endpoint = video_service(url)
+    try:
+        data = json.loads(_fetch(endpoint + urllib.parse.quote(url, safe=""), timeout))
+    except Exception as exc:                                   # noqa: BLE001
+        raise UpdateError(describe_lookup_error(exc)) from exc
+    if not data.get("title"):
+        raise UpdateError(f"{name} gave nothing for that link. Fill the card in by hand.")
+    return {
+        "kind": "external", "video": True, "url": url, "where": name,
+        "title": data["title"].strip(),
+        "date": _nice_date(data.get("upload_date")),
+        "excerpt": _shorten(data.get("description")),
+        "image": data.get("thumbnail_url") or "",
+    }
 
 
 def fetch_book(url, timeout=15):
@@ -2310,6 +2365,7 @@ def fetch_page(url, timeout=15):
             "That page gave nothing to build a card from. Fill the card in by hand.")
     return {
         "kind": "external",
+        "video": meta("og:type").lower().startswith("video") or bool(meta("og:video", "og:video:url")),
         "url": meta("og:url") or url,
         "title": title,
         "date": _nice_date(when),
@@ -2348,6 +2404,7 @@ def fetch_article(url, timeout=15):
                     published / 1000, datetime.timezone.utc).strftime("%d %B %Y").lstrip("0")
             excerpt = re.sub(r"<[^>]+>", "", item.get("excerpt") or "").strip()
             return {
+                "video": is_site_video(item, collection),
                 "title": (item.get("title") or "").strip(),
                 "url": item.get("fullUrl") or parts.path,
                 "date": when,
@@ -2359,6 +2416,22 @@ def fetch_article(url, timeout=15):
         "details by hand, or try an article published more recently.")
 
 
+def is_site_video(item, collection=""):
+    """
+    Whether an item in the site's own list is a video. Squarespace does not
+    say so in one agreed place, so any of these counts: the collection's
+    address naming videos, a field named for video holding something, or
+    the item's structured content describing one. The builder's Video tick
+    settles anything this misses.
+    """
+    import json
+    if re.search(r"(?i)video", collection or ""):
+        return True
+    if any("video" in str(key).lower() and value for key, value in item.items()):
+        return True
+    return "video" in json.dumps(item.get("structuredContent") or {}).lower()
+
+
 def article_card(entry, first_on_page=True):
     """
     One card, ready to paste.
@@ -2366,7 +2439,8 @@ def article_card(entry, first_on_page=True):
     The first card on a page comes inside the .cbm-cards wrapper; any card
     after that is pasted inside that same wrapper, so it is returned bare.
     A card for an article elsewhere or a book opens in a new tab, like every
-    other link off the site, and says where it is from.
+    other link off the site, and says where it is from. A video carries a
+    play button over its picture.
     """
     from html import escape
     import urllib.parse
@@ -2379,14 +2453,18 @@ def article_card(entry, first_on_page=True):
     if image and "?" not in image and \
             "squarespace" in urllib.parse.urlsplit(image).netloc:
         image += "?format=600w"
+    video = bool(entry.get("video")) and kind != "book"
     line = [entry.get("date") or ""]
     if kind != "site":
         line.insert(0, entry.get("where") or ("Book" if kind == "book" else ""))
+    elif video:
+        line.insert(0, "Video")
     line = escape(" · ".join(part for part in line if part.strip()))
     away = ' target="_blank" rel="noopener"' if kind != "site" else ""
     picture = (f'  <a href="{url}"{away}><img src="{escape(image)}" alt="" loading="lazy" /></a>\n'
                if image else "")
-    classes = "cbm-card cbm-card-book" if kind == "book" else "cbm-card"
+    classes = "cbm-card" + (" cbm-card-book" if kind == "book" else "") + \
+        (" cbm-card-video" if video else "")
     card = (f'<div class="{classes}">\n{picture}'
             f'  <div>\n'
             + (f'    <p class="cbm-card-date">{line}</p>\n' if line else "")
