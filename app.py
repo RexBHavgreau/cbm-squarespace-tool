@@ -1,6 +1,6 @@
 """
 CBM Article Converter
-Version 1.6.0
+Version 1.6.1
 
 A small window: choose an article, convert it, read what happened.
 Works on Windows and macOS. Nothing to install beyond the app itself.

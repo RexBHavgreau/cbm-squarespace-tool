@@ -52,6 +52,17 @@ number.
 
 ## Releases
 
+### 1.6.1
+
+Fixes a blurb that went missing. When Blurb is applied in Word with the
+text selected but not the paragraph mark, Word quietly applies its
+"Blurb Char" half instead. It looks the same in Word, but the converter
+only read paragraph styles, so the blurb became ordinary body text and
+was never moved to where Preferences puts it. A paragraph whose text is
+all in a house style's Char half is now treated as that style, for the
+blurb and every other house style, and the report says so. One that
+covers only part of a paragraph is reported rather than lost silently.
+
 ### 1.6.0
 
 Applying styles from a template now shows what the template actually

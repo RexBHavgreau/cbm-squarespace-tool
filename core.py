@@ -6,7 +6,7 @@ import re, math, copy, datetime, pathlib, unicodedata, zipfile
 import mammoth
 from bs4 import BeautifulSoup, Tag, NavigableString
 
-VERSION = "1.6.0"
+VERSION = "1.6.1"
 
 # Kept so anything that still asks for a build number gets something sensible.
 BUILD = VERSION
@@ -513,6 +513,14 @@ def read_docx(path):
         role = role_of(style)
         if role and "'" not in style:
             rules.append(f"p[style-name='{style}'] => div.cbm-{role}:fresh")
+    # Word applies a linked style as its "Blurb Char" half when the text is
+    # selected without the paragraph mark. It looks identical in Word, so mark
+    # the runs and let apply_docx_run_roles decide what the paragraph is.
+    for style in docx_style_names(path, "character"):
+        base = re.sub(r"\s+(Char|Car)$", "", style)
+        role = role_of(base) if base != style else None
+        if role and "'" not in style:
+            rules.append(f"r[style-name='{style}'] => span.cbm-run-{role}")
 
     kept = []
 
@@ -537,15 +545,15 @@ def read_docx(path):
     return result.value, [str(m) for m in result.messages], kept
 
 
-def docx_style_names(path):
-    """Every paragraph style name defined in the document."""
+def docx_style_names(path, kind="paragraph"):
+    """Every style name of one kind (paragraph or character) in the document."""
     try:
         with zipfile.ZipFile(path) as z:
             xml = z.read("word/styles.xml").decode("utf-8", "replace")
     except Exception:
         return []
     names = []
-    for m in re.finditer(r"<w:style\b[^>]*w:type=\"paragraph\"[^>]*>(.*?)</w:style>", xml, re.S):
+    for m in re.finditer(r"<w:style\b[^>]*w:type=\"%s\"[^>]*>(.*?)</w:style>" % kind, xml, re.S):
         nm = re.search(r'<w:name w:val="([^"]+)"', m.group(1))
         if nm:
             names.append(nm.group(1))
@@ -635,6 +643,35 @@ def apply_docx_roles(soup):
         for child in list(text_holder.contents):
             new.append(child.extract())
         div.replace_with(new)
+
+
+def apply_docx_run_roles(soup):
+    """
+    A paragraph whose text is all in "Blurb Char" (or another linked half of
+    a house style) is that paragraph style. Applied to only part of one, it
+    stays body text and is reported, rather than vanishing without a word.
+    Footnote callouts are ignored when deciding, since they sit outside.
+    """
+    promoted, partial = [], []
+    for p in soup.find_all("p"):
+        runs = [s for s in p.find_all("span")
+                if any(c.startswith("cbm-run-") for c in s.get("class") or [])]
+        if not runs:
+            continue
+        roles = {c[8:] for s in runs for c in s["class"] if c.startswith("cbm-run-")}
+        outside = "".join(
+            str(t) for t in p.find_all(string=True)
+            if not any(isinstance(a, Tag) and (a in runs or a.name == "sup")
+                       for a in t.parents))
+        for s in runs:
+            s.unwrap()
+        role = roles.pop() if len(roles) == 1 else None
+        if role and not p.has_attr("data-role") and not outside.strip():
+            p["data-role"] = role
+            promoted.append(role)
+        elif not p.has_attr("data-role"):
+            partial.append(plain(p)[:60])
+    return promoted, partial
 
 
 def tidy(soup):
@@ -1261,6 +1298,14 @@ def convert(path, decide_orphans=None, opts=None, pdf_file=None):
                             if k != "alt" or not picture.get("alt")})
         soup = BeautifulSoup(html, "html.parser")
         apply_docx_roles(soup)
+        promoted, partial = apply_docx_run_roles(soup)
+        for role in promoted:
+            name = role.replace("_", " ")
+            log.append(f"{name} was applied to the text rather than the paragraph; "
+                       f"treated as {name}")
+        for text in partial:
+            log.append("WARNING a house character style covers only part of this "
+                       f"paragraph, so it stays body text: “{text}”")
         unknown = [m for m in messages if "Unrecognised paragraph style" in m]
         if unknown:
             log.append(f"{len(unknown)} unrecognised Word style(s); those became body text")
