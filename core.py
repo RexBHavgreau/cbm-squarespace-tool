@@ -128,6 +128,7 @@ STYLE_SCHEMA = [
         ("byline_size", "Size", "em", 1.0),
         ("byline_align", "Alignment", "align", "center"),
         ("byline_italic", "Italic", "bool", False),
+        ("byline_color", "Link colour", "color", "text"),
     ]),
     ("Reading time", [
         ("read_size", "Size", "em", 0.78),
@@ -184,7 +185,7 @@ STYLE_SCHEMA = [
         ("pdf_align", "Alignment", "align", "center"),
         ("pdf_caps", "Capitals", "bool", True),
         ("pdf_boxed", "Draw a box round it", "bool", True),
-        ("pdf_text_color", "Text colour (untick for the site's link colour)", "bool", True),
+        ("pdf_color", "Colour", "color_byline", "text"),
     ]),
     ("Article link cards", [
         ("card_title_size", "Title size", "em", 1.15),
@@ -199,6 +200,25 @@ STYLE_SCHEMA = [
 STYLE_DEFAULTS = {key: default
                   for _group, items in STYLE_SCHEMA
                   for key, _label, _kind, default in items}
+
+
+HEX_COLOR = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+
+
+def link_color(value, byline=None):
+    """
+    A colour setting as a declaration. "text" follows the surrounding text,
+    "link" leaves it to the site's own link colour, a hex code is that colour,
+    and "byline" is whatever the byline is set to. !important because
+    Squarespace colours links in a Code Block with a more specific rule.
+    """
+    if value == "byline":
+        return link_color(byline) if byline not in (None, "byline") else link_color("text")
+    if value == "link":
+        return ""
+    if isinstance(value, str) and HEX_COLOR.match(value):
+        return f"color:{value} !important;"
+    return "color:inherit !important;"
 
 
 def style_values(opts=None):
@@ -290,7 +310,7 @@ def article_css(opts=None, wrap=True):
   font-size:{v['byline_size']}em; text-align:{v['byline_align']};
   font-style:{italic(v['byline_italic'])}; margin:0 0 0.6em;
 }}
-.cbm-article .cbm-byline a {{ color:inherit; }}
+.cbm-article .cbm-byline a {{ {link_color(v['byline_color'])} }}
 .cbm-article .cbm-read {{
   font-size:{v['read_size']}em; letter-spacing:{v['read_spacing']}em;
   text-align:{v['read_align']};
@@ -402,12 +422,12 @@ def article_css(opts=None, wrap=True):
 .cbm-article .cbm-rule, .cbm-article .cbm-footnotes,
 .cbm-article section {{ clear:both; }}
 .cbm-article .cbm-pdf {{ text-align:{v['pdf_align']}; margin:1em 0; }}
-/* !important because Squarespace colours and underlines links in a Code
-   Block with a rule more specific than this one. */
+/* The box's lack of underline is !important for the same reason as the
+   link colours: Squarespace's own rule for Code Block links outranks it. */
 .cbm-article .cbm-pdf-link {{
   font-size:{v['pdf_size']}em; letter-spacing:0.09em;
   text-transform:{'uppercase' if v['pdf_caps'] else 'none'};
-  {'color:inherit !important;' if v['pdf_text_color'] else ''}
+  {link_color(v['pdf_color'], v['byline_color'])}
   {'display:inline-block; border:1px solid currentColor; padding:0.4em 1.1em; text-decoration:none !important;' if v['pdf_boxed'] else 'text-decoration:underline;'}
 }}
 .cbm-article .cbm-pdf-link:hover {{ opacity:0.75; }}

@@ -245,10 +245,12 @@ the PDF knows exactly what to call it.
 Leave "PDF link" switched off and you are never asked.
 
 How the link looks is set under Designer > Article styles >
-PDF link. Ticked, "Text colour" gives it the colour of the
-text around it; unticked, it takes the link colour from the
-site's own Styles, box and all. Copy the stylesheet into
-Custom CSS again after changing it.
+PDF link. Its Colour can be the text colour (the default),
+the site's link colour from Squarespace's Styles, the same
+as the byline, or one of your own: type a code such as
+#FFFFFF, or press Choose... to pick it. A box round the link
+takes the same colour. Copy the stylesheet into Custom CSS
+again after changing it.
 
 
 ---------------------------------------------------------------
@@ -549,6 +551,13 @@ COPY THE ARTICLE STYLESHEET
 
   The block is marked BEGIN and END. Anything written outside
   those lines is yours and survives a fresh paste.
+
+LINK COLOURS
+
+  The byline's author links and the PDF link each have a
+  colour setting: Text colour, Site's link colour, or This
+  colour, with a code typed or picked. The PDF link can also
+  be Same as byline, so one colour is set in one place.
 
 LINKS
 

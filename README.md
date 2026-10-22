@@ -81,12 +81,14 @@ Links can be underlined or not, article-wide: a new Links setting in
 Designer › Article styles, left to the site by default. Share icons
 and a boxed PDF link are never underlined.
 
-The PDF link can take the site's link colour rather than the text
-colour: untick Text colour under PDF link. Ticked by default. This
-also fixes the PDF link showing the site's link colour when it should
+Link colours for the byline and the PDF link: the text colour (the
+default), the site's link colour, or a colour of your own, typed or
+picked. The PDF link can also be Same as byline. This also fixes the
+PDF link and byline showing the site's link colour when they should
 have matched the text: Squarespace colours links in a Code Block with
-a more specific rule, which outranked the converter's. **Re-export the
-stylesheet for any of these.**
+a more specific rule, which outranked the converter's. The Article
+styles window is also wider, so no setting is cut off at the right.
+**Re-export the stylesheet for any of these.**
 
 A picture with text wrapped round it is no longer written inside its
 paragraph. HTML does not allow that, and browsers coped by breaking the

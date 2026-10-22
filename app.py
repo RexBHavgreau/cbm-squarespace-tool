@@ -590,6 +590,64 @@ class Preferences(tk.Toplevel):
         self.on_save()
 
 
+class ColorChoice:
+    """
+    A link colour: the text's, the site's link colour, the byline's, or one
+    typed or picked. get() and set() speak the stored value ("text", "link",
+    "byline" or "#rrggbb"), so the panel treats it like any other variable.
+    """
+
+    def __init__(self, parent, value, with_byline):
+        from tkinter import colorchooser
+        self.colorchooser = colorchooser
+        self.mode = tk.StringVar()
+        self.hex = tk.StringVar()
+        choices = [("text", "Text colour"), ("link", "Site’s link colour")]
+        if with_byline:
+            choices.append(("byline", "Same as byline"))
+        line = tk.Frame(parent)
+        line.pack(fill="x")
+        for val, text in choices:
+            tk.Radiobutton(line, text=text, value=val, variable=self.mode,
+                           command=self.sync).pack(side="left")
+        custom = tk.Frame(parent)
+        custom.pack(fill="x")
+        tk.Radiobutton(custom, text="This colour:", value="custom", variable=self.mode,
+                       command=self.sync).pack(side="left")
+        self.entry = tk.Entry(custom, textvariable=self.hex, width=9)
+        self.entry.pack(side="left")
+        self.button = tk.Button(custom, text="Choose…", command=self.choose)
+        self.button.pack(side="left", padx=6)
+        self.set(value)
+
+    def sync(self):
+        state = "normal" if self.mode.get() == "custom" else "disabled"
+        self.entry.configure(state=state)
+
+    def choose(self):
+        _rgb, chosen = self.colorchooser.askcolor(
+            color=self.hex.get() if core.HEX_COLOR.match(self.hex.get()) else None)
+        if chosen:
+            self.hex.set(chosen.upper())
+            self.mode.set("custom")
+            self.sync()
+
+    def get(self):
+        if self.mode.get() != "custom":
+            return self.mode.get()
+        value = self.hex.get().strip()
+        return value if value.startswith("#") else "#" + value
+
+    def set(self, value):
+        value = str(value)
+        if core.HEX_COLOR.match(value):
+            self.mode.set("custom")
+            self.hex.set(value)
+        else:
+            self.mode.set(value if value in ("text", "link", "byline") else "text")
+        self.sync()
+
+
 class StylePanel(tk.Toplevel):
     """
     Every style an article uses, laid out by element. The controls are built
@@ -600,7 +658,7 @@ class StylePanel(tk.Toplevel):
         super().__init__(parent)
         self.on_save = on_save
         self.title("Article styles")
-        self.minsize(560, 620)
+        self.minsize(700, 620)
         self.transient(parent)
         self.values = core.style_values()
         self.vars = {}
@@ -615,13 +673,28 @@ class StylePanel(tk.Toplevel):
                        "paste restyles every article on the site, including ones "
                        "published long ago.")).pack(fill="x")
 
-        # a scrolling area, since there are a lot of controls
-        canvas = tk.Canvas(self, highlightthickness=0, height=420)
+        # Packed before the scrolling area so they keep the bottom edge rather
+        # than sitting in whatever room the list leaves beside it.
+        foot = tk.Frame(self)
+        foot.pack(side="bottom", fill="x", padx=18, pady=14)
+        tk.Button(foot, text="Reset to defaults", width=16,
+                  command=self.reset).pack(side="left")
+        tk.Button(foot, text="Preview in browser", width=17,
+                  command=self.preview).pack(side="left", padx=8)
+        tk.Button(foot, text="Close", width=9, command=self.destroy).pack(side="right")
+        tk.Button(foot, text="Save", width=9,
+                  command=self.save).pack(side="right", padx=8)
+
+        # a scrolling area, since there are a lot of controls; the rows take
+        # the canvas's full width, or the right-hand choices are cut off
+        canvas = tk.Canvas(self, highlightthickness=0, height=420, width=640)
         bar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
         inner = tk.Frame(canvas)
         inner.bind("<Configure>",
                    lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=inner, anchor="nw")
+        window = canvas.create_window((0, 0), window=inner, anchor="nw")
+        canvas.bind("<Configure>",
+                    lambda e: canvas.itemconfigure(window, width=e.width))
         canvas.configure(yscrollcommand=bar.set)
         canvas.pack(side="left", fill="both", expand=True, padx=(18, 0), pady=8)
         bar.pack(side="right", fill="y", pady=8)
@@ -632,15 +705,6 @@ class StylePanel(tk.Toplevel):
             for key, label, kind, _default in items:
                 self.add_control(inner, key, label, kind)
 
-        foot = tk.Frame(self)
-        foot.pack(fill="x", padx=18, pady=14)
-        tk.Button(foot, text="Reset to defaults", width=16,
-                  command=self.reset).pack(side="left")
-        tk.Button(foot, text="Preview in browser", width=17,
-                  command=self.preview).pack(side="left", padx=8)
-        tk.Button(foot, text="Close", width=9, command=self.destroy).pack(side="right")
-        tk.Button(foot, text="Save", width=9,
-                  command=self.save).pack(side="right", padx=8)
 
     def add_control(self, parent, key, label, kind):
         row = tk.Frame(parent)
@@ -661,6 +725,11 @@ class StylePanel(tk.Toplevel):
                            ("site", "Site decides")]
             for val, text in choices:
                 tk.Radiobutton(row, text=text, value=val, variable=var).pack(side="left")
+        elif kind in ("color", "color_byline"):
+            tk.Label(row, text=label, width=22, anchor="nw").pack(side="left", anchor="n")
+            box = tk.Frame(row)
+            box.pack(side="left", fill="x")
+            var = ColorChoice(box, value, with_byline=kind == "color_byline")
         elif kind == "text":
             var = tk.StringVar(value=str(value))
             tk.Label(row, text=label, width=22, anchor="w").pack(side="left")
@@ -683,7 +752,8 @@ class StylePanel(tk.Toplevel):
             raw = var.get()
             if kind == "bool":
                 out[key] = bool(raw)
-            elif kind in ("align", "align_none", "underline", "text"):
+            elif kind in ("align", "align_none", "underline", "text",
+                          "color", "color_byline"):
                 out[key] = str(raw)
             else:
                 try:
@@ -692,6 +762,22 @@ class StylePanel(tk.Toplevel):
                     number = float(core.STYLE_DEFAULTS[key])
                 out[key] = int(number) if number == int(number) else number
         return out
+
+    def colors_valid(self):
+        """A typed colour must be a hex code, or the stylesheet would quietly
+        ignore it and fall back to the text colour."""
+        for key, (var, kind) in self.vars.items():
+            if kind in ("color", "color_byline"):
+                value = var.get()
+                if value not in ("text", "link", "byline") and \
+                        not core.HEX_COLOR.match(value):
+                    messagebox.showwarning(
+                        "Not a colour",
+                        f"“{value}” is not a colour code. Use # and six "
+                        "letters or digits, such as #FFFFFF for white, or press "
+                        "Choose… to pick one.")
+                    return False
+        return True
 
     def reset(self):
         if not messagebox.askyesno("Reset styles",
@@ -705,6 +791,8 @@ class StylePanel(tk.Toplevel):
         """Write a sample article with these settings and open it."""
         import tempfile
         import webbrowser
+        if not self.colors_valid():
+            return
         opts = core.options()
         opts["style"] = self.collect()
         opts["heading_align"] = opts["style"].get("heading_align", "none")
@@ -714,6 +802,8 @@ class StylePanel(tk.Toplevel):
         webbrowser.open(target.as_uri())
 
     def save(self):
+        if not self.colors_valid():
+            return
         data = core.load_settings()
         style = self.collect()
         data["style"] = style
