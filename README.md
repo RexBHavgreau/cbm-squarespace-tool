@@ -72,6 +72,12 @@ Word's Subtitle style is no longer mistaken for the title. A subtitle
 used to be left in the body with no styling and uncounted in the
 reading time; it is now an ordinary paragraph.
 
+A picture with text wrapped round it is no longer written inside its
+paragraph. HTML does not allow that, and browsers coped by breaking the
+paragraph apart, leaving its text without its paragraph spacing. The
+picture now comes just before the paragraph, which flows round it.
+**Reconvert any article with a wrapped picture and re-paste it.**
+
 Also fixes a blurb that went missing when Word applied its "Blurb
 Char" half. That happens when the text is selected without the
 paragraph mark; it looks the same in Word, but the converter read only

@@ -985,10 +985,13 @@ def build_figures(soup, pictures):
         slot.append(note)
         figure.append(slot)
 
-        # A Word caption sitting either side of the picture comes with it.
-        holder = image.parent
-        target = holder if holder is not None and holder.name == "p" and \
-            not holder.get_text(strip=True) else image
+        # A wrapped picture is anchored to a paragraph of text in Word, but a
+        # <figure> cannot sit inside a <p>: the browser would split it, leaving
+        # the text bare. So it goes just before its paragraph, whose text then
+        # flows round it. A Word caption either side comes with it.
+        holder = image.find_parent("p")
+        target = holder if holder is not None else image
+        in_text = holder is not None and bool(holder.get_text(strip=True))
         caption = None
         for probe in (target.find_next_sibling(), target.find_previous_sibling()):
             if isinstance(probe, Tag) and probe.get("data-role") == "caption":
@@ -1001,7 +1004,11 @@ def build_figures(soup, pictures):
             figure.append(cap)
             caption.decompose()
 
-        target.replace_with(figure)
+        if in_text:
+            image.decompose()
+            target.insert_before(figure)
+        else:
+            target.replace_with(figure)
         made.append(figure)
     return made, missing_alt
 
