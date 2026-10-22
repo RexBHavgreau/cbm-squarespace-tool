@@ -77,6 +77,10 @@ a new Outdent setting under Pictures in Designer › Article styles,
 0 by default, so nothing moves until it is set. The style preview now
 includes a picture. **Re-export the stylesheet to use it.**
 
+The PDF link can take the site's link colour rather than the text
+colour: untick Text colour under PDF link in Designer › Article
+styles, then re-export the stylesheet. Ticked by default, as before.
+
 A picture with text wrapped round it is no longer written inside its
 paragraph. HTML does not allow that, and browsers coped by breaking the
 paragraph apart, leaving its text without its paragraph spacing. The

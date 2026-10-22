@@ -244,6 +244,12 @@ the PDF knows exactly what to call it.
 
 Leave "PDF link" switched off and you are never asked.
 
+How the link looks is set under Designer > Article styles >
+PDF link. Ticked, "Text colour" gives it the colour of the
+text around it; unticked, it takes the link colour from the
+site's own Styles, box and all. Copy the stylesheet into
+Custom CSS again after changing it.
+
 
 ---------------------------------------------------------------
  ADDING HOUSE STYLES TO AN AUTHOR'S FILE

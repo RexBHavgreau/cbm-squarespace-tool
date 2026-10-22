@@ -181,6 +181,7 @@ STYLE_SCHEMA = [
         ("pdf_align", "Alignment", "align", "center"),
         ("pdf_caps", "Capitals", "bool", True),
         ("pdf_boxed", "Draw a box round it", "bool", True),
+        ("pdf_text_color", "Text colour (untick for the site's link colour)", "bool", True),
     ]),
     ("Article link cards", [
         ("card_title_size", "Title size", "em", 1.15),
@@ -391,7 +392,7 @@ def article_css(opts=None, wrap=True):
 .cbm-article .cbm-pdf-link {{
   font-size:{v['pdf_size']}em; letter-spacing:0.09em;
   text-transform:{'uppercase' if v['pdf_caps'] else 'none'};
-  text-decoration:none; color:inherit;
+  text-decoration:none;{' color:inherit;' if v['pdf_text_color'] else ''}
   {'display:inline-block; border:1px solid currentColor; padding:0.4em 1.1em;' if v['pdf_boxed'] else 'text-decoration:underline;'}
 }}
 .cbm-article .cbm-pdf-link:hover {{ opacity:0.75; }}
