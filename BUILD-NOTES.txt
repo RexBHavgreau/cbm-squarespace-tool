@@ -165,6 +165,17 @@ Send that file on and the cause is usually obvious from it.
 NOTES FOR THE MAC BUILD
 =======================
 
+The Mac app is not published at the moment: it could not be tested,
+and the one report of it in use was that it would not open. Everything
+below still applies to building it, or running app.py from source, on
+a Mac, but it is unsupported.
+
+Recent macOS (15, Sequoia, and later) no longer lets right-click >
+Open past the warning for an unsigned app. Try to open it once, then
+go to System Settings > Privacy & Security, scroll down, and choose
+Open Anyway. That is a likely cause of the failed attempt, and worth
+trying first if the Mac build is ever revived.
+
 Use a Python from python.org rather than whatever Apple ships.
 The system Python's tkinter is often old or missing, and the window
 will not open.
@@ -182,15 +193,15 @@ one will not run on the other. Build on the oldest machine, or add:
     --target-arch universal2
 
 The built .app is not signed, so the first run on each machine is
-refused. Right-click the app, choose Open, then confirm.
+refused. See the Open Anyway steps above.
 
 
 BUILDING AUTOMATICALLY ON GITHUB
 ================================
 
-.github/workflows/build.yml builds both apps whenever a release is
-published, and attaches them to that release. Nobody has to run
-anything, and the two apps always come from the same source.
+.github/workflows/build.yml builds the Windows app whenever a release
+is published, and attaches it to that release. Nobody has to run
+anything.
 
 To use it:
 
@@ -200,13 +211,13 @@ To use it:
   3. Publish a release. Watch it run under the Actions tab.
 
 It can also be run by hand from the Actions tab, with "Run workflow".
-Done that way it does not touch any release: the apps appear as
-downloadable artifacts on the run itself, which is a safe way to test
+Done that way it does not touch any release: the app appears as a
+downloadable artifact on the run itself, which is a safe way to test
 a change before releasing.
 
-The Mac job runs on macOS on Apple Silicon, so the app it builds will
-not run on an Intel Mac. If one of those needs to be supported, change
-runs-on from macos-latest to macos-13.
+The Mac job has been removed. If it is brought back, note that
+macos-latest is Apple Silicon, so its app will not run on an Intel
+Mac without --target-arch universal2.
 
-Neither app is signed. The first run on each machine is still
+The app is not signed. The first run on each machine is still
 challenged, exactly as before.

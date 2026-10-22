@@ -13,13 +13,15 @@ It reads two kinds of article:
 ## Getting it
 
 Download the newest release from the
-[Releases page](../../releases). The Windows `.exe` and the macOS
-`.app` each contain everything they need; nothing has to be
-installed.
+[Releases page](../../releases). The Windows `.exe` contains
+everything it needs; nothing has to be installed.
 
-Neither is code-signed, so the first run on a machine is challenged.
-On Windows choose **More info**, then **Run anyway**. On macOS
-right-click the app and choose **Open**, then confirm.
+It is not code-signed, so the first run on a machine is challenged:
+choose **More info**, then **Run anyway**.
+
+There is no Mac download for now. The Mac build could not be tested,
+so it is no longer published; see `BUILD-NOTES.txt` for running the
+converter from source on a Mac.
 
 ## Documentation
 
@@ -53,6 +55,10 @@ number.
 ## Releases
 
 ### 1.7.0
+
+**Windows only.** The Mac app is no longer built or attached to
+releases, because nobody can test it. A Mac copy already installed
+keeps working, but its update check will find no download for it.
 
 Warns when an article is missing something it should have. If no
 paragraph uses the Title, Author, Blurb or Author Bio style, the

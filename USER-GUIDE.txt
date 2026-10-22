@@ -27,12 +27,11 @@ where you like and double-click it.
 The first time it runs on a machine, the system will object,
 because the app is not signed:
 
-  Windows   "Windows protected your PC". Click More info,
-            then Run anyway.
+  Windows shows "Windows protected your PC". Click More info,
+  then Run anyway.
 
-  macOS     It simply refuses. Right-click (or Control-click)
-            the app, choose Open, then confirm. After that it
-            opens normally.
+The app is published for Windows only. There is no Mac
+download for now.
 
 This happens once per machine, not once per article.
 
@@ -425,9 +424,6 @@ If you already have a shortcut to an older version, the app
 offers to repoint it after a download and remove the old one.
 If you have none, it does not ask: people who do not use
 shortcuts are never interrupted about them.
-
-On a Mac the download is a zip, so expand it first and then use
-Preferences > Desktop shortcut to point at the app.
 
 Preferences > Desktop shortcut can be used at any time, whether
 or not a shortcut is there already, to point at whichever copy
