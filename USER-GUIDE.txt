@@ -30,10 +30,10 @@ because the app is not signed:
   Windows shows "Windows protected your PC". Click More info,
   then Run anyway.
 
+This happens once per machine, not once per article.
+
 The app is published for Windows only. There is no Mac
 download for now.
-
-This happens once per machine, not once per article.
 
 
 ---------------------------------------------------------------
