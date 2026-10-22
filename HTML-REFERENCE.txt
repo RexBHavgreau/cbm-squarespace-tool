@@ -207,6 +207,8 @@ These class names are stable and safe to target in Custom CSS:
   .cbm-pdf-link          the link itself
   .cbm-cards             a list of article link cards
   .cbm-card              one card in that list
+  .cbm-card-book         a card for a book: the cover is shown
+                         whole rather than cropped
   .cbm-pullquote         the pull quote box
   .cbm-pullquote-text    the sentence inside it
   .cbm-pq-left           a pull quote on the left

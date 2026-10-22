@@ -453,6 +453,10 @@ def article_css(opts=None, wrap=True):
   text-transform:uppercase; opacity:0.7;
 }}
 .cbm-cards .cbm-card-excerpt {{ margin:0; opacity:0.85; }}
+/* A book cover is shown whole and upright, not cropped to the landscape frame. */
+.cbm-cards .cbm-card-book img {{
+  aspect-ratio:auto; object-fit:contain; width:auto; max-width:100%; max-height:16em;
+}}
 @media (min-width:{v['card_wide_at']}em) {{
   .cbm-cards .cbm-card {{
     grid-template-columns:{v['card_thumb_width']}em 1fr; gap:1.6em; align-items:start;
@@ -2122,6 +2126,199 @@ def app_folder():
 # The card rules now live in the exported stylesheet, so a card carries no
 # styling of its own. Only the first card on a page needs the wrapper, which
 # holds the list margin and the specificity those rules depend on.
+CARD_KINDS = [("site", "Article on this site"), ("external", "Article elsewhere"),
+              ("book", "Book")]
+
+# Amazon's product code follows /dp/ or /gp/product/. For a printed book it is
+# the ISBN-10, which the book services can look up; a Kindle edition has a
+# code beginning B0 that they cannot.
+AMAZON_CODE = re.compile(r"/(?:dp|gp/product|exec/obidos/ASIN)/([0-9]{9}[0-9Xx]|B0[0-9A-Z]{8})")
+CARD_AGENT = f"Mozilla/5.0 (compatible; CBM-Article-Converter/{VERSION})"
+
+
+def describe_lookup_error(exc):
+    """What went wrong looking up a card, in terms of the card."""
+    text = str(exc)
+    if "CERTIFICATE_VERIFY_FAILED" in text or "SSL" in text.upper():
+        return ("The secure connection could not be verified. This sometimes "
+                "happens on a managed network. Fill the card in by hand.")
+    if "403" in text or "401" in text:
+        return ("That site refused the request, as some do when they are not "
+                "asked by a browser. Fill the card in by hand.")
+    if "404" in text:
+        return "Nothing was found at that address. Check it, or fill the card in by hand."
+    if "429" in text:
+        return ("That service is turning requests away for now because too many "
+                "have been made. Try again later, or fill the card in by hand.")
+    if "timed out" in text.lower() or "urlopen error" in text.lower():
+        return "Could not reach that site. Check the internet connection, or fill the card in by hand."
+    return f"Could not look that up ({text}). Fill the card in by hand."
+
+
+def _fetch(url, timeout, accept="application/json"):
+    import urllib.request
+    request = urllib.request.Request(url, headers={"User-Agent": CARD_AGENT, "Accept": accept})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        charset = response.headers.get_content_charset() or "utf-8"
+        return response.read(3_000_000).decode(charset, "replace")
+
+
+def _nice_date(value):
+    """'2024-03-12T09:00:00Z', '2024-03-12' or '2024' -> '12 March 2024' or '2024'."""
+    value = str(value or "").strip()
+    m = re.match(r"(\d{4})-(\d{2})-(\d{2})", value)
+    if m:
+        try:
+            return datetime.date(*map(int, m.groups())).strftime("%d %B %Y").lstrip("0")
+        except ValueError:
+            pass
+    m = re.search(r"\b(1[5-9]\d{2}|20\d{2})\b", value)
+    return m.group(1) if m else ""
+
+
+def _shorten(text, limit=280):
+    """Plain text, cut at a sentence end before the limit where there is one."""
+    text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", str(text or ""))).strip()
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    end = max(cut.rfind(". "), cut.rfind("? "), cut.rfind("! "))
+    return cut[:end + 1] if end > limit // 2 else cut.rsplit(" ", 1)[0] + "…"
+
+
+def card_kind(url):
+    """Which kind of card an address most likely makes. A guess the builder
+    shows, and the operator can change."""
+    import urllib.parse
+    host = urllib.parse.urlsplit(url if "://" in url else "https://" + url).netloc.lower()
+    if re.search(r"(^|\.)amazon\.[a-z.]+$", host) and AMAZON_CODE.search(url):
+        return "book"
+    return "site"
+
+
+def fetch_card(url, timeout=15):
+    """
+    Fill in a card from its address. A book by its ISBN, an article on this
+    site from Squarespace's own list, and anything else from the preview tags
+    a page carries for social media. Returns what it found, with "kind" set;
+    anything missing comes back empty for the operator to fill in.
+    """
+    url = url.strip()
+    if not url:
+        raise UpdateError("No address given.")
+    if card_kind(url) == "book":
+        return fetch_book(url, timeout)
+    try:
+        found = fetch_article(url, timeout)
+        found["kind"] = "site"
+        return found
+    except UpdateError:
+        pass
+    return fetch_page(url, timeout)
+
+
+def fetch_book(url, timeout=15):
+    """
+    A book from its Amazon link. The ISBN in the address is looked up with
+    Google Books, then Open Library; Amazon itself is never asked, since it
+    refuses automated requests.
+    """
+    import json
+    import urllib.parse
+    parts = urllib.parse.urlsplit(url if "://" in url else "https://" + url)
+    code = AMAZON_CODE.search(url).group(1).upper()
+    clean = f"https://{parts.netloc}/dp/{code}"
+    if code.startswith("B0"):
+        raise UpdateError(
+            "That is a Kindle edition, whose Amazon code is not an ISBN, so it "
+            "cannot be looked up. Use the paperback or hardback link, or fill "
+            "the card in by hand.")
+    card = {"kind": "book", "url": clean, "title": "", "date": "", "excerpt": "",
+            "image": "", "where": "Book"}
+    failure = None
+    try:
+        data = json.loads(_fetch(
+            f"https://www.googleapis.com/books/v1/volumes?q=isbn:{code}", timeout))
+        info = ((data.get("items") or [{}])[0]).get("volumeInfo") or {}
+        title = info.get("title") or ""
+        if info.get("subtitle"):
+            title += ": " + info["subtitle"]
+        card["title"] = title
+        card["date"] = _nice_date(info.get("publishedDate"))
+        card["excerpt"] = _shorten(info.get("description"))
+        thumb = (info.get("imageLinks") or {}).get("thumbnail") or ""
+        card["image"] = thumb.replace("http://", "https://").replace("&edge=curl", "")
+    except Exception as exc:                                   # noqa: BLE001
+        failure = exc
+    # Open Library's large covers are far sharper than Google's thumbnails,
+    # so it is asked for the cover even when Google has supplied the rest.
+    if not card["title"] or not card["image"] or "books.google" in card["image"]:
+        try:
+            data = json.loads(_fetch(
+                "https://openlibrary.org/api/books?format=json&jscmd=data"
+                f"&bibkeys=ISBN:{code}", timeout))
+            book = data.get(f"ISBN:{code}") or {}
+            if book:
+                card["title"] = card["title"] or book.get("title", "")
+                card["date"] = card["date"] or _nice_date(book.get("publish_date"))
+                cover = book.get("cover") or {}
+                card["image"] = cover.get("large") or cover.get("medium") or card["image"]
+        except Exception as exc:                               # noqa: BLE001
+            failure = failure or exc
+    if not card["title"]:
+        if failure is not None:
+            raise UpdateError(describe_lookup_error(failure))
+        raise UpdateError(
+            f"No book with ISBN {code} was found. Check the link, or fill the "
+            "card in by hand.")
+    return card
+
+
+def fetch_page(url, timeout=15):
+    """
+    An article anywhere, from the tags a page carries so that a shared link
+    shows a title, summary and picture. Most publishers include them.
+    """
+    import urllib.parse
+    url = url if "://" in url else "https://" + url
+    try:
+        html = _fetch(url, timeout, accept="text/html,application/xhtml+xml")
+    except Exception as exc:                                   # noqa: BLE001
+        raise UpdateError(describe_lookup_error(exc)) from exc
+    soup = BeautifulSoup(html, "html.parser")
+
+    def meta(*names):
+        for name in names:
+            tag = (soup.find("meta", attrs={"property": name})
+                   or soup.find("meta", attrs={"name": name})
+                   or soup.find("meta", attrs={"itemprop": name}))
+            if tag is not None and tag.get("content", "").strip():
+                return tag["content"].strip()
+        return ""
+
+    title = meta("og:title", "twitter:title") or (
+        soup.title.get_text(strip=True) if soup.title else "")
+    when = meta("article:published_time", "datePublished", "date",
+                "dc.date", "citation_publication_date")
+    if not when:
+        stamp = soup.find("time", attrs={"datetime": True})
+        when = stamp["datetime"] if stamp is not None else ""
+    image = meta("og:image", "og:image:url", "twitter:image")
+    host = urllib.parse.urlsplit(url).netloc
+    if not title:
+        raise UpdateError(
+            "That page gave nothing to build a card from. Fill the card in by hand.")
+    return {
+        "kind": "external",
+        "url": meta("og:url") or url,
+        "title": title,
+        "date": _nice_date(when),
+        "excerpt": _shorten(meta("og:description", "twitter:description", "description")),
+        "image": urllib.parse.urljoin(url, image) if image else "",
+        "where": meta("og:site_name") or re.sub(r"^www\.", "", host),
+    }
+
+
 def fetch_article(url, timeout=15):
     """
     Read one article's details straight from the site, so nobody has to
@@ -2130,7 +2327,6 @@ def fetch_article(url, timeout=15):
     """
     import json
     import urllib.parse
-    import urllib.request
     url = url.strip()
     if not url:
         raise UpdateError("No address given.")
@@ -2139,20 +2335,17 @@ def fetch_article(url, timeout=15):
     slug = parts.path.rstrip("/").rsplit("/", 1)[-1]
     feed = urllib.parse.urlunsplit(
         (parts.scheme or "https", parts.netloc, collection, "format=json", ""))
-    request = urllib.request.Request(
-        feed, headers={"User-Agent": f"CBM-Article-Converter/{VERSION}"})
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            data = json.loads(response.read().decode("utf-8"))
+        data = json.loads(_fetch(feed, timeout))
     except Exception as exc:                                   # noqa: BLE001
-        raise UpdateError(describe_network_error(exc)) from exc
+        raise UpdateError(describe_lookup_error(exc)) from exc
     for item in data.get("items") or []:
         if item.get("urlId") == slug or slug in str(item.get("fullUrl", "")):
             published = item.get("publishOn")
             when = ""
             if published:
                 when = datetime.datetime.fromtimestamp(
-                    published / 1000, datetime.timezone.utc).strftime("%d %B %Y")
+                    published / 1000, datetime.timezone.utc).strftime("%d %B %Y").lstrip("0")
             excerpt = re.sub(r"<[^>]+>", "", item.get("excerpt") or "").strip()
             return {
                 "title": (item.get("title") or "").strip(),
@@ -2172,21 +2365,32 @@ def article_card(entry, first_on_page=True):
 
     The first card on a page comes inside the .cbm-cards wrapper; any card
     after that is pasted inside that same wrapper, so it is returned bare.
+    A card for an article elsewhere or a book opens in a new tab, like every
+    other link off the site, and says where it is from.
     """
     from html import escape
+    import urllib.parse
+    kind = entry.get("kind") or "site"
     title = escape(entry.get("title") or "")
     url = escape(entry.get("url") or "")
-    date = escape(entry.get("date") or "")
     excerpt = escape(entry.get("excerpt") or "")
     image = entry.get("image") or ""
-    if image and "?" not in image:
+    # Squarespace resizes on request; anyone else's server would ignore it.
+    if image and "?" not in image and \
+            "squarespace" in urllib.parse.urlsplit(image).netloc:
         image += "?format=600w"
-    picture = (f'  <a href="{url}"><img src="{escape(image)}" alt="" loading="lazy" /></a>\n'
+    line = [entry.get("date") or ""]
+    if kind != "site":
+        line.insert(0, entry.get("where") or ("Book" if kind == "book" else ""))
+    line = escape(" · ".join(part for part in line if part.strip()))
+    away = ' target="_blank" rel="noopener"' if kind != "site" else ""
+    picture = (f'  <a href="{url}"{away}><img src="{escape(image)}" alt="" loading="lazy" /></a>\n'
                if image else "")
-    card = (f'<div class="cbm-card">\n{picture}'
+    classes = "cbm-card cbm-card-book" if kind == "book" else "cbm-card"
+    card = (f'<div class="{classes}">\n{picture}'
             f'  <div>\n'
-            + (f'    <p class="cbm-card-date">{date}</p>\n' if date else "")
-            + f'    <h3><a href="{url}">{title}</a></h3>\n'
+            + (f'    <p class="cbm-card-date">{line}</p>\n' if line else "")
+            + f'    <h3><a href="{url}"{away}>{title}</a></h3>\n'
             + (f'    <p class="cbm-card-excerpt">{excerpt}</p>\n' if excerpt else "")
             + '  </div>\n</div>')
     if not first_on_page:

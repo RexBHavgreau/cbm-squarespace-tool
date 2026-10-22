@@ -116,39 +116,55 @@ class PicturePlacer(tk.Toplevel):
 
 class CardBuilder(tk.Toplevel):
     """
-    Build the HTML for one article link, for a profile page. The address is
-    enough: the rest is read from the site, and can be edited before the
-    card is made.
+    Build the HTML for one card on a profile page: an article on this site,
+    an article published elsewhere, or a book. The address is enough: the
+    rest is looked up, and can be edited before the card is made.
     """
 
-    FIELDS = [("title", "Title"), ("date", "Date"), ("excerpt", "Excerpt"),
-              ("image", "Image address")]
+    FIELDS = [("title", "Title"), ("where", "From"), ("date", "Date"),
+              ("excerpt", "Excerpt"), ("image", "Image address")]
 
     def __init__(self, parent, say):
         super().__init__(parent)
         self.say = say
-        self.title("Build an article card")
+        self.title("Build a card")
         self.resizable(False, False)
         self.transient(parent)
-        tk.Label(self, text="Article address", anchor="w",
+        tk.Label(self, text="Address", anchor="w",
                  font=("Helvetica", 11, "bold")).pack(fill="x", padx=18, pady=(16, 2))
         self.url = tk.StringVar()
         row = tk.Frame(self)
         row.pack(fill="x", padx=18)
         tk.Entry(row, textvariable=self.url, width=52).pack(side="left")
-        tk.Button(row, text="Look up", command=self.lookup).pack(side="left", padx=8)
+        self.lookup_btn = tk.Button(row, text="Look up", width=9, command=self.lookup)
+        self.lookup_btn.pack(side="left", padx=8)
         tk.Label(self, anchor="w", fg="#666", justify="left", wraplength=470,
-                 text=("Looking it up fills in the rest. Anything can be edited "
-                       "before the card is built, and a blank field is simply "
-                       "left out.")).pack(fill="x", padx=18, pady=(4, 10))
-        self.entries = {}
+                 text=("An article on this site, an article anywhere else, or a "
+                       "book's Amazon link. Looking it up fills in the rest. "
+                       "Anything can be edited before the card is built, and a "
+                       "blank field is simply left out.")).pack(fill="x", padx=18, pady=(4, 8))
+
+        self.kind = tk.StringVar(value="site")
+        kinds = tk.Frame(self)
+        kinds.pack(fill="x", padx=18, pady=(0, 6))
+        for value, text in core.CARD_KINDS:
+            tk.Radiobutton(kinds, text=text, value=value, variable=self.kind,
+                           command=self.sync).pack(side="left", padx=(0, 10))
+
+        self.entries, self.fields = {}, {}
         for key, label in self.FIELDS:
             line = tk.Frame(self)
             line.pack(fill="x", padx=18, pady=2)
             tk.Label(line, text=label, width=14, anchor="w").pack(side="left")
             var = tk.StringVar()
-            tk.Entry(line, textvariable=var, width=48).pack(side="left")
+            self.fields[key] = tk.Entry(line, textvariable=var, width=48)
+            self.fields[key].pack(side="left")
             self.entries[key] = var
+        tk.Label(self, anchor="w", justify="left", fg="#666", wraplength=470,
+                 text=("From is the publication's name, or Book. It is shown "
+                       "before the date, and only on cards for things published "
+                       "elsewhere, which open in a new tab.")
+                 ).pack(fill="x", padx=18, pady=(2, 0))
         self.first_on_page = tk.BooleanVar(value=True)
         tk.Checkbutton(self, anchor="w", variable=self.first_on_page,
                        text="First card on this page"
@@ -161,27 +177,63 @@ class CardBuilder(tk.Toplevel):
         foot.pack(fill="x", padx=18, pady=14)
         tk.Button(foot, text="Close", width=9, command=self.destroy).pack(side="right")
         tk.Button(foot, text="Build", width=9, command=self.build).pack(side="right", padx=8)
+        self.sync()
         self.geometry(f"+{parent.winfo_rootx() + 50}+{parent.winfo_rooty() + 60}")
 
+    def sync(self):
+        """From means nothing on a card for this site, so it is shut off there,
+        and a book is labelled Book unless something else has been typed."""
+        kind = self.kind.get()
+        self.fields["where"].configure(state="disabled" if kind == "site" else "normal")
+        if kind == "book" and not self.entries["where"].get().strip():
+            self.entries["where"].set("Book")
+
     def lookup(self):
-        try:
-            found = core.fetch_article(self.url.get())
-        except core.UpdateError as exc:
-            messagebox.showwarning("Could not look it up", str(exc))
+        """Looked up away from the window, which would otherwise freeze while
+        a slow site answers. The thread only leaves its answer; the window
+        collects it, since Tk must not be called from another thread."""
+        address = self.url.get()
+        self.lookup_btn.configure(state="disabled", text="Looking…")
+        answer = []
+
+        def work():
+            try:
+                answer.append(core.fetch_card(address))
+            except Exception as exc:                      # noqa: BLE001
+                answer.append(exc)
+
+        def collect():
+            if not self.winfo_exists():
+                return
+            if answer:
+                self.looked_up(answer[0])
+            else:
+                self.after(100, collect)
+
+        threading.Thread(target=work, daemon=True).start()
+        self.after(100, collect)
+
+    def looked_up(self, found):
+        self.lookup_btn.configure(state="normal", text="Look up")
+        if isinstance(found, Exception):
+            messagebox.showwarning("Could not look it up", str(found), parent=self)
             return
+        self.kind.set(found.get("kind", "site"))
         for key, var in self.entries.items():
             var.set(found.get(key, ""))
         self.url.set(found.get("url", self.url.get()))
+        self.sync()
 
     def build(self):
         entry = {key: var.get().strip() for key, var in self.entries.items()}
         entry["url"] = self.url.get().strip()
+        entry["kind"] = self.kind.get()
         if not entry["url"] or not entry["title"]:
             messagebox.showwarning(
                 "Not enough to build with",
                 "An address and a title are the least it needs.")
             return
-        CopyWindow(self, "Article card",
+        CopyWindow(self, "Card",
                    core.article_card(entry, first_on_page=self.first_on_page.get()))
 
 
@@ -876,7 +928,7 @@ class App:
                              command=self.show_stylesheet)
         designer.add_separator()
         designer.add_command(label="Place the pictures\u2026", command=self.place_pictures)
-        designer.add_command(label="Build an article card\u2026", command=self.build_card)
+        designer.add_command(label="Build a card\u2026", command=self.build_card)
         bar.add_cascade(label="Designer", menu=designer)
 
         helpmenu = tk.Menu(bar, tearoff=0)

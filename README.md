@@ -72,6 +72,14 @@ Word's Subtitle style is no longer mistaken for the title. A subtitle
 used to be left in the body with no styling and uncounted in the
 reading time; it is now an ordinary paragraph.
 
+Cards for more than articles on this site. The card builder (Designer
+› Build a card) also makes cards for articles published elsewhere,
+read from the summary a page keeps for social media and labelled with
+the publication's name, and for books, looked up from an Amazon link's
+ISBN through Google Books and Open Library, with the cover shown whole.
+Both open in a new tab. **Re-export the stylesheet before adding a
+book card.**
+
 Apply Styles to DOCX no longer asks which template to use: the window
 already shows it, with Change beside it. You are asked only when no
 template has been chosen, or the chosen one has been moved or deleted.

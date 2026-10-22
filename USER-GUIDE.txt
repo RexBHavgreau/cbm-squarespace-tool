@@ -568,15 +568,40 @@ LINKS
   footnote numbers. Share icons are never underlined, and nor
   is a boxed PDF link, since the box already marks it.
 
-BUILD AN ARTICLE CARD
+BUILD A CARD
 
-  Paste an article's address and it reads the title, date,
-  excerpt and picture from the site, then builds the HTML for
-  a link card to put on an author's profile page. Every field
-  can be edited first, and a blank one is left out.
+  Builds the HTML for a link card on an author's profile page,
+  for any of three things. Paste the address and press Look
+  up; it works out which it is, and fills in the rest.
 
-  Turn the styling off when adding a card to a list that
-  already has it.
+    Article on this site   read from the site itself.
+
+    Article elsewhere      read from the summary a page keeps
+                           for when it is shared on social
+                           media. The card says where it was
+                           published, as THEMELIOS · 12 MARCH
+                           2024, and opens in a new tab.
+
+    Book                   paste the book's Amazon link. Its
+                           ISBN is looked up with Google Books
+                           and Open Library (Amazon itself does
+                           not allow it). The cover is shown
+                           whole, the card reads BOOK · 2011,
+                           and it opens in a new tab. A Kindle
+                           link cannot be looked up; use the
+                           paperback's link instead.
+
+  The guess can be changed by choosing another of the three.
+  Every field can be edited before building, and a blank one
+  is left out. From is the publication's name, or Book.
+
+  If a site refuses, or a book is not found, Look up says so;
+  fill the card in by hand. Building only needs an address
+  and a title.
+
+  The first card on a page brings the wrapper the others sit
+  inside. Untick "First card on this page" for every later
+  card, and paste it inside that wrapper.
 
 
 ---------------------------------------------------------------
