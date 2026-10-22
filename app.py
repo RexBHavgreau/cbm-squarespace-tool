@@ -330,40 +330,6 @@ class StylePicker(tk.Toplevel):
         self.on_save(names)
 
 
-class TemplateChoice(tk.Toplevel):
-    """Use the remembered template, or pick a different one."""
-
-    def __init__(self, parent, template):
-        super().__init__(parent)
-        self.result = None
-        self.title("Which template?")
-        self.resizable(False, False)
-        self.transient(parent)
-        self.grab_set()
-        tk.Label(self, text="Add the house styles from this template?",
-                 font=("Helvetica", 12, "bold"), anchor="w").pack(
-                 fill="x", padx=18, pady=(18, 6))
-        tk.Label(self, text=template.name, anchor="w").pack(fill="x", padx=18)
-        tk.Label(self, text=str(template.parent), anchor="w", fg="#777",
-                 wraplength=420, justify="left").pack(fill="x", padx=18, pady=(0, 14))
-        row = tk.Frame(self)
-        row.pack(fill="x", padx=18, pady=(0, 18))
-        tk.Button(row, text="Use this template", width=18,
-                  command=lambda: self.done("use")).pack(side="left")
-        tk.Button(row, text="Choose another…", width=16,
-                  command=lambda: self.done("other")).pack(side="left", padx=8)
-        tk.Button(row, text="Cancel", width=10,
-                  command=lambda: self.done(None)).pack(side="right")
-        self.protocol("WM_DELETE_WINDOW", lambda: self.done(None))
-        self.update_idletasks()
-        self.geometry(f"+{parent.winfo_rootx() + 40}+{parent.winfo_rooty() + 60}")
-        self.wait_window(self)
-
-    def done(self, value):
-        self.result = value
-        self.destroy()
-
-
 class DroppedFiles(tk.Toplevel):
     """
     Shown when an article is dropped onto the application. Converting
@@ -1069,12 +1035,25 @@ class App:
 
     # --------------------------------------------------------- house styles --
     def resolve_template(self):
+        """
+        The template shown in the window, used without asking: the window
+        already says which it is, and Change is beside it. Only when there is
+        none, or it has been moved or deleted since, is anyone interrupted.
+        """
+        if self.template and self.template.exists():
+            return self.template
         if self.template:
-            choice = TemplateChoice(self.root, self.template).result
-            if choice is None:
-                return None
-            if choice == "use":
-                return self.template
+            reason = (f"The house template is no longer where it was:\n\n"
+                      f"{self.template}\n\nIt may have been moved or deleted. "
+                      "Choose it again; the new place will be remembered.")
+            self.template = None
+            self.show_template()
+        else:
+            reason = ("No house template has been chosen yet.\n\nChoose the Word "
+                      "template that holds the house styles. It will be "
+                      "remembered, and shown in the window from then on.")
+        if not messagebox.askokcancel("Choose a house template", reason):
+            return None
         return self.pick_template()
 
     def add_styles(self):
@@ -1128,7 +1107,7 @@ class App:
 
     def choose_styles(self):
         """Reopen the picker for the remembered template."""
-        template = self.template or self.pick_template()
+        template = self.resolve_template()
         if not template:
             return
         self.pick_styles(template, lambda names: self.say(

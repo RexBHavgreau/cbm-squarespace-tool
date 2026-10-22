@@ -116,15 +116,14 @@ The template you last used is stored in a small settings file in your
 home folder, named .cbm-article-converter.json. It survives closing
 and reopening the app.
 
-Each time you add house styles, the app shows which template it has
-and offers three choices: use it, choose another, or cancel. Choosing
-another remembers the new one from then on.
+The template in use is shown in the window at all times, with a
+Change button beside it, and Apply Styles to DOCX uses that one
+without asking. To use a different template, press Change first;
+the new one is remembered from then on.
 
-The template in use is also shown in the window at all times, with a
-Change button beside it.
-
-If the remembered template is moved or deleted, the app quietly
-forgets it and asks you to choose again.
+You are asked only when there is no template yet, or the remembered
+one has been moved or deleted since. The app says which, then opens
+the file chooser.
 
 
 THE EASY WAY TO BUILD

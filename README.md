@@ -72,6 +72,10 @@ Word's Subtitle style is no longer mistaken for the title. A subtitle
 used to be left in the body with no styling and uncounted in the
 reading time; it is now an ordinary paragraph.
 
+Apply Styles to DOCX no longer asks which template to use: the window
+already shows it, with Change beside it. You are asked only when no
+template has been chosen, or the chosen one has been moved or deleted.
+
 Wrapped pictures can be outdented into the margin like pull quotes:
 a new Outdent setting under Pictures in Designer › Article styles,
 0 by default, so nothing moves until it is set. The style preview now
